@@ -149,14 +149,14 @@ def register_search_tools(mcp: FastMCP, api: TushareAPI, db: EntityDatabase):
             }
 
     @mcp.tool(tags={"搜索"})
-    async def search_stocks(keyword: str, limit: int = 10) -> Dict[str, Any]:
+    async def search_stocks(keyword: str = "", limit: int = 10, query: str = "") -> Dict[str, Any]:
         """
         搜索股票和指数（根据名称或代码）
 
         支持 A 股、港股、美股、各类指数。
 
         Args:
-            keyword: 搜索关键词（名称或代码，如"银行"、"沪深300"、"000001"、"腾讯"、"Apple"）
+            keyword: 搜索关键词（名称或代码，如"银行"、"沪深300"、"000001"、"腾讯"、"Apple"）。也可用 query 参数名
             limit: 返回结果数量限制，默认10
 
         Returns:
@@ -171,6 +171,11 @@ def register_search_tools(mcp: FastMCP, api: TushareAPI, db: EntityDatabase):
             ...     print(f"{hk['name']} ({hk['ts_code']})")
         """
         try:
+            # 兼容 query 别名
+            keyword = keyword or query
+            if not keyword:
+                return {"success": False, "error": "请提供搜索关键词（参数名: keyword 或 query）"}
+
             if not api.is_available():
                 return {
                     "success": False,

@@ -138,6 +138,29 @@ class TushareAPI:
             return True
         return False
 
+    def is_fund_code(self, code: str) -> bool:
+        """
+        判断代码是否为基金代码（纯静态规则，不需要 API 调用）
+
+        规则：
+        - *.OF → 场外基金
+        - 5xxxxx.SH → 上交所 ETF
+        - 1xxxxx.SZ → 深交所 ETF
+        - 15xxxx.SZ → 深交所 ETF/LOF
+        - 16xxxx.SZ → 深交所 LOF
+        """
+        code = code.strip().upper()
+        # 场外基金
+        if code.endswith('.OF'):
+            return True
+        # 上交所 ETF: 510xxx, 511xxx, 512xxx, 513xxx, 515xxx, 516xxx, 518xxx, 560xxx, 561xxx, 588xxx
+        if re.match(r'^5[0-9]{5}\.SH$', code):
+            return True
+        # 深交所 ETF/LOF: 1xxxxx.SZ, 15xxxx.SZ, 16xxxx.SZ
+        if re.match(r'^1[0-9]{5}\.SZ$', code):
+            return True
+        return False
+
     def get_index_daily_func(self, code: str):
         """
         根据指数代码返回对应的日线 API 函数

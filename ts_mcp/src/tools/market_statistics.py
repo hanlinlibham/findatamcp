@@ -289,7 +289,7 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
             logger.error(f"❌ get_market_summary error: {e}")
             return build_error_response(f"获取市场统计异常: {str(e)}", ErrorCode.UPSTREAM_ERROR)
 
-    @mcp.tool(tags={"市场统计"}, meta={"ui": {"resourceUri": "ui://tushare/data-table", "visibility": ["model", "app"]}})
+    @mcp.tool(tags={"市场统计"})
     async def get_market_extremes(
         trade_date: Optional[str] = None,
         metric: str = "pct_chg",
@@ -486,7 +486,7 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
             logger.error(f"❌ get_market_extremes error: {e}")
             return build_error_response(f"获取市场极值异常: {str(e)}", ErrorCode.UPSTREAM_ERROR)
 
-    @mcp.tool(tags={"市场统计"}, meta={"ui": {"resourceUri": "ui://tushare/data-table", "visibility": ["model", "app"]}})
+    @mcp.tool(tags={"市场统计"})
     async def get_batch_pct_chg(
         stock_codes: List[str],
         start_date: str,

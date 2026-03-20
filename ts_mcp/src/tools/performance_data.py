@@ -17,7 +17,9 @@ def register_performance_tools(mcp: FastMCP, api: TushareAPI):
 
     @mcp.tool(tags={"财务数据"})
     async def get_forecast(
-        ts_code: str,
+        ts_code: str = "",
+        stock_code: str = "",
+        code: str = "",
         year: Optional[str] = None,
     ) -> Dict[str, Any]:
         """获取业绩预告数据（预增/预减/扭亏等）
@@ -31,6 +33,9 @@ def register_performance_tools(mcp: FastMCP, api: TushareAPI):
         """
         try:
             # 兼容旧参数名
+            ts_code = ts_code or stock_code or code
+            if not ts_code:
+                return {"success": False, "error": "请提供股票代码（参数名: ts_code, stock_code 或 code）"}
             ts_code = api.normalize_stock_code(ts_code)
 
             if not api.is_available():
@@ -66,7 +71,9 @@ def register_performance_tools(mcp: FastMCP, api: TushareAPI):
 
     @mcp.tool(tags={"财务数据"})
     async def get_express(
-        ts_code: str,
+        ts_code: str = "",
+        stock_code: str = "",
+        code: str = "",
         period: Optional[str] = None,
     ) -> Dict[str, Any]:
         """获取业绩快报数据
@@ -80,6 +87,9 @@ def register_performance_tools(mcp: FastMCP, api: TushareAPI):
         """
         try:
             # 兼容旧参数名
+            ts_code = ts_code or stock_code or code
+            if not ts_code:
+                return {"success": False, "error": "请提供股票代码（参数名: ts_code, stock_code 或 code）"}
             ts_code = api.normalize_stock_code(ts_code)
 
             if not api.is_available():

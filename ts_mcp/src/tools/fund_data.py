@@ -23,7 +23,7 @@ def register_fund_tools(mcp: FastMCP, api: TushareAPI):
     """注册基金数据工具"""
 
     @mcp.tool(tags={"基金数据"}, annotations=READONLY_ANNOTATIONS)
-    async def get_fund_data(ts_code: str) -> Dict[str, Any]:
+    async def get_fund_data(ts_code: str = "", stock_code: str = "", code: str = "") -> Dict[str, Any]:
         """获取基金综合信息（基本面、最新净值、基金经理、份额规模）
 
         Args:
@@ -51,6 +51,10 @@ def register_fund_tools(mcp: FastMCP, api: TushareAPI):
                 ),
             }
             # ETF 额外获取 etf_basic（含追踪指数、ETF类型）
+            # 兼容参数别名
+            ts_code = ts_code or stock_code or code
+            if not ts_code:
+                return {"success": False, "error": "请提供基金代码（参数名: ts_code, stock_code 或 code）"}
             is_etf = api.is_fund_code(ts_code)
             if is_etf:
                 tasks["etf"] = cache.cached_call(
@@ -155,7 +159,9 @@ def register_fund_tools(mcp: FastMCP, api: TushareAPI):
 
     @mcp.tool(tags={"基金数据"}, annotations=READONLY_ANNOTATIONS)
     async def get_fund_nav(
-        ts_code: str,
+        ts_code: str = "",
+        stock_code: str = "",
+        code: str = "",
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         market: Optional[str] = None,

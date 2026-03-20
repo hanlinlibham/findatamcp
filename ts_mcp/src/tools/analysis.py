@@ -113,8 +113,10 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
 
     @mcp.tool(tags={"量化分析"})
     async def get_financial_metrics(
-        ts_code: str,
-        metrics: List[str],
+        ts_code: str = "",
+        stock_code: str = "",
+        code: str = "",
+        metrics: List[str] = ["pe", "roe", "revenue_yoy"],
         period: str = "3y",
         calc_type: str = "raw",
     ) -> Dict[str, Any]:
@@ -124,7 +126,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
         返回原始财务数据，并可计算增长率、复合增速等衍生指标。
 
         Args:
-            ts_code: Tushare股票代码，例如 '600519.SH', '000001.SZ'
+            ts_code: 股票代码，例如 '600519.SH', '000001.SZ'。也可用 stock_code 或 code 参数名
                     也支持 '600519', '000001'（自动补全后缀）
             metrics: 指标列表，可选值：
                 估值类（来自 daily_basic，TTM 口径）:
@@ -152,6 +154,9 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
         """
         try:
             # 兼容旧参数名
+            ts_code = ts_code or stock_code or code
+            if not ts_code:
+                return {"success": False, "error": "请提供股票代码（参数名: ts_code, stock_code 或 code）"}
             ts_code = api.normalize_stock_code(ts_code)
 
             # 财务指标仅支持 A 股

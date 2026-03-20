@@ -26,18 +26,21 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
     @mcp.tool(tags={"行情数据"}, annotations=READONLY_ANNOTATIONS)
     async def get_stock_data(
         ts_code: str,
-        stock_code: Optional[str] = None  # 兼容旧参数名，已废弃
-    ) -> Dict[str, Any]:
+        stock_code: Optional[str] = None,  # 兼容旧参数名
+        code: Optional[str] = None  # 兼容 code 别名
+    ) -> Union[ToolResult, Dict[str, Any]]:
         """获取股票综合数据（行情+财务+基础信息，支持A股/港股/美股）
 
         Args:
             ts_code: 股票代码，支持 '600519.SH'、'00700.HK'、'AAPL' 或裸码
-            stock_code: (废弃) 旧参数名，请使用 ts_code
+            stock_code: ts_code 的别名
+            code: ts_code 的别名
         """
         try:
             # 兼容旧参数名
-            if stock_code and not ts_code:
-                ts_code = stock_code
+            ts_code = ts_code or stock_code or code or ""
+            if not ts_code:
+                return {"success": False, "error": "请提供股票代码（参数名: ts_code, stock_code 或 code）"}
             # 标准化股票代码
             ts_code = api.normalize_stock_code(ts_code)
 
@@ -245,21 +248,24 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
                 "ts_code": ts_code if 'ts_code' in locals() else None
             }
 
-    @mcp.tool(tags={"行情数据"}, annotations=READONLY_ANNOTATIONS, meta={"ui": {"resourceUri": "ui://tushare/data-table", "visibility": ["model", "app"]}})
+    @mcp.tool(tags={"行情数据"}, annotations=READONLY_ANNOTATIONS, )
     async def get_latest_daily_close(
         ts_code: str,
-        stock_code: Optional[str] = None  # 兼容旧参数名，已废弃
+        stock_code: Optional[str] = None,  # 兼容旧参数名
+        code: Optional[str] = None  # 兼容 code 别名
     ) -> Union[ToolResult, Dict[str, Any]]:
         """获取股票/指数最新收盘价（日线数据，支持A股/港股/美股/指数）
 
         Args:
             ts_code: 股票或指数代码，支持 '600519.SH'、'00700.HK'、'AAPL'、'000001.SH'(上证指数) 等
-            stock_code: (废弃) 旧参数名，请使用 ts_code
+            stock_code: ts_code 的别名
+            code: ts_code 的别名
         """
         try:
             # 兼容旧参数名
-            if stock_code and not ts_code:
-                ts_code = stock_code
+            ts_code = ts_code or stock_code or code or ""
+            if not ts_code:
+                return {"success": False, "error": "请提供股票代码（参数名: ts_code, stock_code 或 code）"}
             ts_code = api.normalize_stock_code(ts_code)
 
             if api.is_available():
@@ -339,16 +345,17 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
                 "ts_code": ts_code if 'ts_code' in locals() else None
             }
 
-    @mcp.tool(tags={"行情数据"}, annotations=READONLY_ANNOTATIONS, meta={"ui": {"resourceUri": "ui://tushare/candlestick-chart", "visibility": ["model", "app"]}})
+    @mcp.tool(tags={"行情数据"}, annotations=READONLY_ANNOTATIONS, meta={"ui": {"resourceUri": "ui://tushare/kline-chart", "visibility": ["model", "app"]}})
     async def get_historical_data(
         ts_code: str,
         days: int = 60,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
-        include_items: bool = False,
+        include_items: bool = True,
         max_rows: int = 30,
-        stock_code: Optional[str] = None  # 兼容旧参数名，已废弃
-    ) -> Dict[str, Any]:
+        stock_code: Optional[str] = None,  # 兼容旧参数名
+        code: Optional[str] = None  # 兼容 code 别名
+    ) -> Union[ToolResult, Dict[str, Any]]:
         """获取股票/指数历史数据及统计指标（波动率、区间涨跌幅、价格区间）
 
         Args:
@@ -358,12 +365,14 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
             end_date: 结束日期(YYYYMMDD)，默认今天
             include_items: 是否返回每日明细，默认 False
             max_rows: 明细最大行数，默认30
-            stock_code: (废弃) 旧参数名，请使用 ts_code
+            stock_code: ts_code 的别名
+            code: ts_code 的别名
         """
         try:
             # 兼容旧参数名
-            if stock_code and not ts_code:
-                ts_code = stock_code
+            ts_code = ts_code or stock_code or code or ""
+            if not ts_code:
+                return {"success": False, "error": "请提供股票代码（参数名: ts_code, stock_code 或 code）"}
             # 标准化股票代码
             ts_code = api.normalize_stock_code(ts_code)
 
@@ -429,7 +438,7 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
                 else:
                     _asset_type = "stock"
 
-                return {
+                structured = {
                     "success": True,
                     "ts_code": ts_code,
                     "asset_type": _asset_type,
@@ -439,6 +448,16 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
                     "end_date": end_date,
                     "timestamp": datetime.now().isoformat()
                 }
+                # Build text summary for LLM
+                _stats = daily_data.get("price_statistics", {})
+                _trend = daily_data.get("trend_statistics", {})
+                _chg = _trend.get("total_change", 0)
+                _chg_s = f"+{_chg}%" if _chg >= 0 else f"{_chg}%"
+                _summary = f"{ts_code}: 最新{_stats.get('latest_price','-')}, 区间{_chg_s}, 最高{_stats.get('max_price','-')}, 最低{_stats.get('min_price','-')}, {daily_data.get('data_count',0)}个交易日"
+                return ToolResult(
+                    content=[TextContent(type="text", text=_summary)],
+                    structured_content=structured,
+                )
             else:
                 return {
                     "success": False,
@@ -457,20 +476,23 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
         ts_code: str,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
-        stock_code: Optional[str] = None  # 兼容旧参数名，已废弃
-    ) -> Dict[str, Any]:
+        stock_code: Optional[str] = None,  # 兼容旧参数名
+        code: Optional[str] = None  # 兼容 code 别名
+    ) -> Union[ToolResult, Dict[str, Any]]:
         """获取个股资金流向（主力/散户净流入，仅A股）
 
         Args:
             ts_code: A股代码，支持 '600519.SH' 或 '600519'
             start_date: 开始日期(YYYYMMDD)，默认最近30天
             end_date: 结束日期(YYYYMMDD)，默认今天
-            stock_code: (废弃) 旧参数名，请使用 ts_code
+            stock_code: ts_code 的别名
+            code: ts_code 的别名
         """
         try:
             # 兼容旧参数名
-            if stock_code and not ts_code:
-                ts_code = stock_code
+            ts_code = ts_code or stock_code or code or ""
+            if not ts_code:
+                return {"success": False, "error": "请提供股票代码（参数名: ts_code, stock_code 或 code）"}
             ts_code = api.normalize_stock_code(ts_code)
 
             # 资金流向仅支持 A 股
@@ -499,7 +521,7 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
             df = df.sort_values('trade_date')
             data = df.to_dict('records')
 
-            result = {
+            structured = {
                 "success": True,
                 "ts_code": ts_code,
                 "start_date": start_date,
@@ -509,10 +531,18 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
             }
             large = handle_large_data(data, "get_moneyflow", {"ts_code": ts_code, "start_date": start_date, "end_date": end_date})
             if "is_truncated" in large:
-                result.update(large)
+                structured.update(large)
             else:
-                result["data"] = large["data"]
-            return result
+                structured["data"] = large["data"]
+
+            # Text summary for LLM
+            _net_total = sum((r.get("net_mf_amount") or 0) for r in data) / 100000  # 亿
+            _net_sign = "+" if _net_total >= 0 else ""
+            _summary = f"{ts_code} 资金流向: {start_date}~{end_date}, {len(data)}个交易日, 净流入{_net_sign}{_net_total:.2f}亿"
+            return ToolResult(
+                content=[TextContent(type="text", text=_summary)],
+                structured_content=structured,
+            )
         except Exception as e:
             return {
                 "success": False,

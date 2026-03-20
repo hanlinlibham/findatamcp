@@ -89,7 +89,9 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
 
     @mcp.tool(tags={"指数数据"}, annotations=READONLY_ANNOTATIONS)
     async def get_index_valuation(
-        ts_code: str,
+        ts_code: str = "",
+        stock_code: str = "",
+        code: str = "",
         trade_date: Optional[str] = None,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None

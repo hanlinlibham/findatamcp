@@ -31,6 +31,88 @@ from fastmcp.server.transforms.visibility import Visibility
 import uvicorn
 
 from src.config import config
+
+# ── Session 过期友好提示中间件 ──
+import json as _json
+from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.responses import Response as StarletteResponse
+from starlette.middleware import Middleware
+
+class SessionExpiredMiddleware:
+    """
+    仅拦截带 Mcp-Session-Id 的 POST /mcp 请求的 404 响应，
+    替换 "Session not found" 为包含重连指引的错误消息。
+    其他所有请求（SSE、GET、非 MCP 路径）直接放行。
+    """
+    def __init__(self, app: ASGIApp):
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        # 只拦截 POST 请求且带 session header 的
+        method = scope.get("method", "")
+        headers = dict(scope.get("headers", []))
+        has_session = b"mcp-session-id" in headers
+
+        if method != "POST" or not has_session:
+            await self.app(scope, receive, send)
+            return
+
+        # 对带 session 的 POST 请求，捕获响应检查是否 404
+        status_code = None
+        saved_start = None
+        body_chunks = []
+
+        async def intercept_send(message):
+            nonlocal status_code, saved_start
+            if message["type"] == "http.response.start":
+                status_code = message["status"]
+                if status_code == 404:
+                    saved_start = message  # 暂存，等 body 到齐再决定
+                else:
+                    await send(message)
+            elif message["type"] == "http.response.body":
+                if status_code == 404:
+                    body_chunks.append(message.get("body", b""))
+                    if not message.get("more_body", False):
+                        full_body = b"".join(body_chunks)
+                        try:
+                            data = _json.loads(full_body)
+                            if (isinstance(data, dict)
+                                and "Session not found" in data.get("error", {}).get("message", "")):
+                                data["error"]["message"] = (
+                                    "Session expired or invalid. "
+                                    "Please reconnect: send a new initialize request "
+                                    "WITHOUT the Mcp-Session-Id header to create a fresh session."
+                                )
+                                data["error"]["data"] = {
+                                    "reason": "session_expired",
+                                    "action": "reconnect",
+                                    "hint": "Remove Mcp-Session-Id header and POST initialize to /mcp",
+                                }
+                                full_body = _json.dumps(data).encode()
+                        except Exception:
+                            pass
+                        # 更新 content-length 并发送响应
+                        patched_headers = [
+                            (k, v) if k != b"content-length" else (k, str(len(full_body)).encode())
+                            for k, v in saved_start.get("headers", [])
+                        ]
+                        await send({
+                            "type": "http.response.start",
+                            "status": saved_start["status"],
+                            "headers": patched_headers,
+                        })
+                        await send({"type": "http.response.body", "body": full_body})
+                else:
+                    await send(message)
+
+        await self.app(scope, receive, intercept_send)
+
+
 from src.cache import cache
 from src.database import EntityDatabase
 from src.utils.tushare_api import TushareAPI
@@ -185,8 +267,12 @@ def main():
         logger.info(f"   URL: http://{config.HOST}:{config.PORT}")
         logger.info("=" * 80)
         
-        # 启动服务器 - 使用配置的传输方式（默认 streamable-http）
-        mcp.run(transport=config.TRANSPORT, host=config.HOST, port=config.PORT)
+        # 启动服务器 - 使用 http_app + 中间件 + uvicorn
+        app = mcp.http_app(
+            transport=config.TRANSPORT,
+            middleware=[Middleware(SessionExpiredMiddleware)],
+        )
+        uvicorn.run(app, host=config.HOST, port=config.PORT)
         
     except KeyboardInterrupt:
         logger.info("\n⚠️  Server interrupted by user")
