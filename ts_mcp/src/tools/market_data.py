@@ -21,11 +21,11 @@ from ..utils.large_data_handler import handle_large_data
 from .constants import READONLY_ANNOTATIONS
 
 KLINE_CHART_APP = AppConfig(
-    resource_uri="ui://tushare/kline-chart",
+    resource_uri="ui://findata/kline-chart",
     visibility=["model", "app"],
 )
 MONEYFLOW_CHART_APP = AppConfig(
-    resource_uri="ui://tushare/moneyflow-chart",
+    resource_uri="ui://findata/moneyflow-chart",
     visibility=["model", "app"],
 )
 
@@ -58,7 +58,7 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
                 "ts_code": ts_code,
                 "input_code": ts_code,
                 "collection_time": datetime.now().isoformat(),
-                "data_source": "tushare_pro" if api.is_available() else "tushare_free",
+                "data_source": "findata_pro" if api.is_available() else "findata_free",
                 "api_status": "pro" if api.is_available() else "free"
             }
 
@@ -86,7 +86,7 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
                     else:
                         comprehensive_data["realtime_data"] = {"error": "无最新数据"}
                 else:
-                    comprehensive_data["realtime_data"] = {"error": "Tushare Pro not available"}
+                    comprehensive_data["realtime_data"] = {"error": "数据服务不可用（Pro 接口未配置）"}
             except Exception as e:
                 comprehensive_data["realtime_data"] = {"error": f"获取实时数据失败: {str(e)}"}
 
@@ -127,7 +127,7 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
                     else:
                         comprehensive_data["daily_data"] = {"error": "无历史数据"}
                 else:
-                    comprehensive_data["daily_data"] = {"error": "Tushare Pro not available"}
+                    comprehensive_data["daily_data"] = {"error": "数据服务不可用（Pro 接口未配置）"}
             except Exception as e:
                 comprehensive_data["daily_data"] = {"error": f"获取历史数据失败: {str(e)}"}
 
@@ -166,7 +166,7 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
                         else:
                             comprehensive_data["basic_info"] = {"error": "未找到股票基本信息"}
                     else:
-                        comprehensive_data["basic_info"] = {"error": "Tushare Pro not available"}
+                        comprehensive_data["basic_info"] = {"error": "数据服务不可用（Pro 接口未配置）"}
                 except Exception as e:
                     comprehensive_data["basic_info"] = {"error": f"获取基本信息失败: {str(e)}"}
             else:
@@ -222,7 +222,7 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
 
                         comprehensive_data["financial_data"] = financial_data
                     else:
-                        comprehensive_data["financial_data"] = {"error": "Tushare Pro not available"}
+                        comprehensive_data["financial_data"] = {"error": "数据服务不可用（Pro 接口未配置）"}
                 except Exception as e:
                     comprehensive_data["financial_data"] = {"error": f"获取财务数据失败: {str(e)}"}
 
@@ -303,7 +303,7 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
             else:
                 return {
                     "success": False,
-                    "error": "Tushare Pro not available",
+                    "error": "数据服务不可用（Pro 接口未配置）",
                     "ts_code": ts_code
                 }
 
@@ -336,7 +336,7 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
                 # 向后兼容：保留旧字段名
                 "realtime_data": data,
                 "meta": {
-                    "data_source": "tushare_pro",
+                    "data_source": "findata_pro",
                     "data_type": "daily_close",
                     "note": "此为日线收盘数据，非盘中实时行情"
                 },
@@ -373,7 +373,7 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
             days: 获取天数，默认60，不传 start_date/end_date 时使用
             start_date: 开始日期(YYYYMMDD)，优先级高于 days
             end_date: 结束日期(YYYYMMDD)，默认今天
-            include_items: 是否返回每日明细，默认 False
+            include_items: 是否返回每日明细，默认 True
             max_rows: 明细最大行数，默认30
             stock_code: ts_code 的别名
             code: ts_code 的别名
@@ -434,7 +434,7 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
                 else:
                     daily_data = {"error": "无历史数据"}
             else:
-                daily_data = {"error": "Tushare Pro not available"}
+                daily_data = {"error": "数据服务不可用（Pro 接口未配置）"}
 
             if daily_data and not daily_data.get("error"):
                 # 计算 asset_type
@@ -514,7 +514,7 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
                 }
 
             if not api.is_available():
-                return {"success": False, "error": "Tushare Pro not available"}
+                return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
 
             # 默认获取最近30天
             if not end_date:

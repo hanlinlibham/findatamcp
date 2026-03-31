@@ -8,15 +8,21 @@
 from typing import Dict, Any, Optional
 from datetime import datetime
 from fastmcp import FastMCP
+from fastmcp.server.apps import AppConfig
 
 from ..cache import cache
 from ..utils.tushare_api import TushareAPI
+
+DATA_TABLE_APP = AppConfig(
+    resource_uri="ui://findata/data-table",
+    visibility=["model", "app"],
+)
 
 
 def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
     """注册市场流向工具"""
 
-    @mcp.tool(tags={"行业板块"})
+    @mcp.tool(tags={"行业板块"}, app=DATA_TABLE_APP)
     async def get_sector_top_stocks(
         sector_name: str,
         limit: int = 10,
@@ -46,7 +52,7 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
         """
         try:
             if not api.is_available():
-                return {"success": False, "error": "Tushare Pro Required"}
+                return {"success": False, "error": "Pro data access required"}
 
             # ===== 第1步：获取行业股票列表 =====
             target_codes = []
@@ -211,6 +217,7 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
                 "sector_name": sector_name,
                 "data_source": data_source,
                 "count": len(result_list),
+                "data": result_list,
                 "stocks": result_list,
                 "codes": codes_only,
                 "limit": limit,
@@ -242,7 +249,7 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
                 "sector_name": sector_name
             }
 
-    @mcp.tool(tags={"行业板块"})
+    @mcp.tool(tags={"行业板块"}, app=DATA_TABLE_APP)
     async def get_top_list(trade_date: str, market_type: str = "SH") -> Dict[str, Any]:
         """
         获取龙虎榜数据
@@ -273,7 +280,7 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
         """
         try:
             if not api.is_available():
-                return {"success": False, "error": "Tushare Pro not available"}
+                return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
 
             df = api.pro.top_list(trade_date=trade_date)
 
