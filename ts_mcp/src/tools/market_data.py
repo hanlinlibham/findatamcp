@@ -11,6 +11,7 @@ import asyncio
 from typing import Dict, Any, Optional, Union
 from datetime import datetime, timedelta
 from fastmcp import FastMCP
+from fastmcp.server.apps import AppConfig
 from fastmcp.tools.tool import ToolResult
 from mcp.types import TextContent
 
@@ -18,6 +19,15 @@ from ..cache import cache
 from ..utils.tushare_api import TushareAPI, fetch_daily_data
 from ..utils.large_data_handler import handle_large_data
 from .constants import READONLY_ANNOTATIONS
+
+KLINE_CHART_APP = AppConfig(
+    resource_uri="ui://tushare/kline-chart",
+    visibility=["model", "app"],
+)
+MONEYFLOW_CHART_APP = AppConfig(
+    resource_uri="ui://tushare/moneyflow-chart",
+    visibility=["model", "app"],
+)
 
 
 def register_market_tools(mcp: FastMCP, api: TushareAPI):
@@ -345,7 +355,7 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
                 "ts_code": ts_code if 'ts_code' in locals() else None
             }
 
-    @mcp.tool(tags={"行情数据"}, annotations=READONLY_ANNOTATIONS, meta={"ui": {"resourceUri": "ui://tushare/kline-chart", "visibility": ["model", "app"]}})
+    @mcp.tool(tags={"行情数据"}, annotations=READONLY_ANNOTATIONS, app=KLINE_CHART_APP)
     async def get_historical_data(
         ts_code: str,
         days: int = 60,
@@ -471,7 +481,7 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
                 "ts_code": ts_code if 'ts_code' in locals() else None
             }
 
-    @mcp.tool(tags={"行情数据"}, annotations=READONLY_ANNOTATIONS, meta={"ui": {"resourceUri": "ui://tushare/moneyflow-chart", "visibility": ["model", "app"]}})
+    @mcp.tool(tags={"行情数据"}, annotations=READONLY_ANNOTATIONS, app=MONEYFLOW_CHART_APP)
     async def get_moneyflow(
         ts_code: str,
         start_date: Optional[str] = None,

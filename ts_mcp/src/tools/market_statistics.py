@@ -11,6 +11,7 @@ import asyncio
 from typing import Dict, Any, List, Optional, Union
 from datetime import datetime, timedelta
 from fastmcp import FastMCP
+from fastmcp.server.apps import AppConfig
 from fastmcp.tools.tool import ToolResult
 from mcp.types import TextContent
 import pandas as pd
@@ -25,11 +26,20 @@ from ..utils.errors import ErrorCode
 
 logger = logging.getLogger(__name__)
 
+MARKET_DASHBOARD_APP = AppConfig(
+    resource_uri="ui://tushare/market-dashboard",
+    visibility=["model", "app"],
+)
+MARKET_DASHBOARD_APP_ONLY = AppConfig(
+    resource_uri="ui://tushare/market-dashboard",
+    visibility=["app"],
+)
+
 
 def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
     """注册市场统计工具"""
 
-    @mcp.tool(tags={"市场统计"}, meta={"ui": {"resourceUri": "ui://tushare/market-dashboard", "visibility": ["model", "app"]}})
+    @mcp.tool(tags={"市场统计"}, app=MARKET_DASHBOARD_APP)
     async def get_market_summary(
         trade_date: Optional[str] = None,
         market: str = "all",
@@ -727,7 +737,7 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
 
     @mcp.tool(
         tags={"市场统计"},
-        meta={"ui": {"resourceUri": "ui://tushare/market-dashboard", "visibility": ["app"]}}
+        app=MARKET_DASHBOARD_APP_ONLY,
     )
     async def refresh_market_data(
         market: str = "all",
