@@ -39,7 +39,7 @@ def register_performance_tools(mcp: FastMCP, api: TushareAPI):
             ts_code = api.normalize_stock_code(ts_code)
 
             if not api.is_available():
-                return {"success": False, "error": "Tushare Pro not available"}
+                return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
 
             # 如果没有指定年份，获取最近一年的数据
             if not year:
@@ -93,7 +93,7 @@ def register_performance_tools(mcp: FastMCP, api: TushareAPI):
             ts_code = api.normalize_stock_code(ts_code)
 
             if not api.is_available():
-                return {"success": False, "error": "Tushare Pro not available"}
+                return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
 
             if period:
                 df = api.pro.express(ts_code=ts_code, period=period)

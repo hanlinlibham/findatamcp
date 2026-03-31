@@ -3,7 +3,7 @@
 提供金融实体搜索相关的MCP工具，包括：
 - search_financial_entity: 搜索金融实体（使用后端API）
 - get_entity_by_code: 根据代码查询实体
-- search_stocks: 搜索股票（使用Tushare）
+- search_stocks: 搜索股票（使用金融数据API）
 """
 
 from typing import Dict, Any, Optional
@@ -179,7 +179,7 @@ def register_search_tools(mcp: FastMCP, api: TushareAPI, db: EntityDatabase):
             if not api.is_available():
                 return {
                     "success": False,
-                    "error": "需要Tushare Pro权限",
+                    "error": "需要 Pro 数据权限",
                     "keyword": keyword
                 }
 
