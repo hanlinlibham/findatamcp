@@ -16,6 +16,7 @@ import asyncio
 from typing import Dict, Any, Optional, List, Union
 from datetime import datetime, timedelta
 from fastmcp import FastMCP
+from fastmcp.server.apps import AppConfig
 from fastmcp.tools.tool import ToolResult
 from mcp.types import TextContent
 import pandas as pd
@@ -28,11 +29,58 @@ from ..utils.errors import ErrorCode
 
 logger = logging.getLogger(__name__)
 
+MACRO_PANEL_APP = AppConfig(
+    resource_uri="ui://findata/macro-panel",
+    visibility=["model", "app"],
+)
+SERIES_CHART_APP = AppConfig(
+    resource_uri="ui://findata/series-chart",
+    visibility=["model", "app"],
+)
+
+
+def _format_ui_value(value: Any, suffix: str = "") -> str:
+    if value is None:
+        return "-"
+    if isinstance(value, float):
+        return f"{round(value, 2)}{suffix}"
+    return f"{value}{suffix}"
+
+
+def _build_series_panel(
+    title: str,
+    data: List[Dict[str, Any]],
+    x_field: str,
+    series: List[Dict[str, Any]],
+    y_axes: Optional[List[Dict[str, Any]]] = None,
+    note: Optional[str] = None,
+    threshold: Optional[float] = None,
+) -> Dict[str, Any]:
+    return {
+        "title": title,
+        "xField": x_field,
+        "data": sorted(data, key=lambda item: str(item.get(x_field) or "")),
+        "series": series,
+        "yAxes": y_axes or [{"name": "数值"}],
+        "note": note,
+        "threshold": threshold,
+    }
+
+
+def _build_series_ui(title: str, subtitle: str, panels: List[Dict[str, Any]], stats: List[Dict[str, Any]]) -> Dict[str, Any]:
+    return {
+        "kind": "series-chart",
+        "title": title,
+        "subtitle": subtitle,
+        "panels": panels,
+        "stats": stats,
+    }
+
 
 def register_macro_tools(mcp: FastMCP, api: TushareAPI):
     """注册宏观数据工具"""
 
-    @mcp.tool(tags={"宏观数据"})
+    @mcp.tool(tags={"宏观数据"}, app=MACRO_PANEL_APP)
     async def get_macro_summary() -> Union[ToolResult, Dict[str, Any]]:
         """
         【宏观概览】一次调用获取最新的关键宏观经济指标
@@ -74,7 +122,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
         """
         try:
             if not api.is_available():
-                return build_error_response("Tushare Pro 不可用", ErrorCode.PRO_REQUIRED)
+                return build_error_response("数据服务不可用（Pro 接口未配置）", ErrorCode.PRO_REQUIRED)
 
             result = {
                 "gdp": None,
@@ -295,7 +343,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
             summary = " ".join(parts)
 
             meta = build_meta(
-                data_source="tushare_pro",
+                data_source="findata_pro",
                 coverage=sum(1 for v in result.values() if v is not None)
             )
 
@@ -316,7 +364,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
             logger.error(f"❌ get_macro_summary error: {e}")
             return build_error_response(f"获取宏观数据异常: {str(e)}", ErrorCode.UPSTREAM_ERROR)
 
-    @mcp.tool(tags={"宏观数据"})
+    @mcp.tool(tags={"宏观数据"}, app=SERIES_CHART_APP)
     async def get_gdp_data(
         start_q: Optional[str] = None,
         end_q: Optional[str] = None,
@@ -351,7 +399,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
         """
         try:
             if not api.is_available():
-                return build_error_response("Tushare Pro 不可用", ErrorCode.PRO_REQUIRED)
+                return build_error_response("数据服务不可用（Pro 接口未配置）", ErrorCode.PRO_REQUIRED)
 
             kwargs = {"limit": limit}
             if start_q:
@@ -382,11 +430,47 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
                     "ti_yoy": float(row.get('ti_yoy', 0))
                 })
 
+            latest = data[0] if data else {}
             return {
                 "success": True,
                 "data": data,
+                "ui": _build_series_ui(
+                    title="GDP 趋势",
+                    subtitle=f"{len(data)} 个季度",
+                    panels=[
+                        _build_series_panel(
+                            title="GDP 总量",
+                            data=data,
+                            x_field="quarter",
+                            series=[
+                                {"name": "GDP", "field": "gdp"},
+                                {"name": "第一产业", "field": "pi"},
+                                {"name": "第二产业", "field": "si"},
+                                {"name": "第三产业", "field": "ti"},
+                            ],
+                            y_axes=[{"name": "亿元"}],
+                        ),
+                        _build_series_panel(
+                            title="同比增速",
+                            data=data,
+                            x_field="quarter",
+                            series=[
+                                {"name": "GDP同比", "field": "gdp_yoy"},
+                                {"name": "第一产业同比", "field": "pi_yoy"},
+                                {"name": "第二产业同比", "field": "si_yoy"},
+                                {"name": "第三产业同比", "field": "ti_yoy"},
+                            ],
+                            y_axes=[{"name": "%", "format": "percent"}],
+                        ),
+                    ],
+                    stats=[
+                        {"label": "最新季度", "value": _format_ui_value(latest.get("quarter"))},
+                        {"label": "最新GDP", "value": _format_ui_value(latest.get("gdp")), "note": "亿元"},
+                        {"label": "GDP同比", "value": _format_ui_value(latest.get("gdp_yoy"), "%")},
+                    ],
+                ),
                 "meta": {
-                    "data_source": "tushare_pro",
+                    "data_source": "findata_pro",
                     "count": len(data),
                     "unit": "亿元",
                     "fields": {
@@ -404,7 +488,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
             logger.error(f"❌ get_gdp_data error: {e}")
             return build_error_response(f"获取GDP数据异常: {str(e)}", ErrorCode.UPSTREAM_ERROR)
 
-    @mcp.tool(tags={"宏观数据"})
+    @mcp.tool(tags={"宏观数据"}, app=SERIES_CHART_APP)
     async def get_cpi_data(
         start_m: Optional[str] = None,
         end_m: Optional[str] = None,
@@ -440,7 +524,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
         """
         try:
             if not api.is_available():
-                return build_error_response("Tushare Pro 不可用", ErrorCode.PRO_REQUIRED)
+                return build_error_response("数据服务不可用（Pro 接口未配置）", ErrorCode.PRO_REQUIRED)
 
             kwargs = {"limit": limit}
             if start_m:
@@ -481,13 +565,45 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
             return {
                 "success": True,
                 "data": data,
+                "ui": _build_series_ui(
+                    title="CPI 趋势",
+                    subtitle=f"{len(data)} 个月",
+                    panels=[
+                        _build_series_panel(
+                            title="全国 CPI",
+                            data=data,
+                            x_field="month",
+                            series=[
+                                {"name": "同比", "field": "cpi_yoy"},
+                                {"name": "环比", "field": "cpi_mom"},
+                                {"name": "累计", "field": "cpi_accu"},
+                            ],
+                            y_axes=[{"name": "%", "format": "percent"}],
+                        ),
+                        _build_series_panel(
+                            title="城乡 CPI",
+                            data=data,
+                            x_field="month",
+                            series=[
+                                {"name": "城镇同比", "field": "town_yoy"},
+                                {"name": "农村同比", "field": "rural_yoy"},
+                            ],
+                            y_axes=[{"name": "%", "format": "percent"}],
+                        ),
+                    ],
+                    stats=[
+                        {"label": "最新同比", "value": _format_ui_value(cpi_yoy, "%")},
+                        {"label": "通胀水平", "value": inflation_level},
+                        {"label": "样本数", "value": str(len(data))},
+                    ],
+                ),
                 "analysis": {
                     "latest_yoy": cpi_yoy,
                     "inflation_level": inflation_level,
                     "target": "央行目标通常为3%左右"
                 },
                 "meta": {
-                    "data_source": "tushare_pro",
+                    "data_source": "findata_pro",
                     "count": len(data),
                     "fields": {
                         "cpi_yoy": "同比涨幅(%)",
@@ -502,7 +618,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
             logger.error(f"❌ get_cpi_data error: {e}")
             return build_error_response(f"获取CPI数据异常: {str(e)}", ErrorCode.UPSTREAM_ERROR)
 
-    @mcp.tool(tags={"宏观数据"})
+    @mcp.tool(tags={"宏观数据"}, app=SERIES_CHART_APP)
     async def get_pmi_data(
         start_m: Optional[str] = None,
         end_m: Optional[str] = None,
@@ -538,7 +654,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
         """
         try:
             if not api.is_available():
-                return build_error_response("Tushare Pro 不可用", ErrorCode.PRO_REQUIRED)
+                return build_error_response("数据服务不可用（Pro 接口未配置）", ErrorCode.PRO_REQUIRED)
 
             kwargs = {"limit": limit}
             if start_m:
@@ -580,9 +696,35 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
             else:
                 trend = "数据不足"
 
+            latest = data[0] if data else {}
             return {
                 "success": True,
                 "data": data,
+                "ui": _build_series_ui(
+                    title="PMI 趋势",
+                    subtitle=f"{len(data)} 个月",
+                    panels=[
+                        _build_series_panel(
+                            title="PMI 景气度",
+                            data=data,
+                            x_field="month",
+                            series=[
+                                {"name": "制造业PMI", "field": "pmi"},
+                                {"name": "新订单", "field": "new_orders"},
+                                {"name": "生产", "field": "production"},
+                                {"name": "就业", "field": "employment"},
+                            ],
+                            y_axes=[{"name": "指数"}],
+                            threshold=50,
+                            note="50 为荣枯线",
+                        ),
+                    ],
+                    stats=[
+                        {"label": "最新 PMI", "value": _format_ui_value(latest.get("pmi"))},
+                        {"label": "景气判断", "value": latest.get("interpretation") or "-"},
+                        {"label": "趋势", "value": trend},
+                    ],
+                ),
                 "analysis": {
                     "latest_pmi": data[0]['pmi'] if data else None,
                     "trend": trend,
@@ -590,7 +732,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
                     "note": "PMI > 50 表示经济扩张，< 50 表示收缩"
                 },
                 "meta": {
-                    "data_source": "tushare_pro",
+                    "data_source": "findata_pro",
                     "count": len(data),
                     "fields": {
                         "pmi": "制造业PMI",
@@ -606,7 +748,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
             logger.error(f"❌ get_pmi_data error: {e}")
             return build_error_response(f"获取PMI数据异常: {str(e)}", ErrorCode.UPSTREAM_ERROR)
 
-    @mcp.tool(tags={"宏观数据"})
+    @mcp.tool(tags={"宏观数据"}, app=SERIES_CHART_APP)
     async def get_money_supply(
         start_m: Optional[str] = None,
         end_m: Optional[str] = None,
@@ -649,7 +791,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
         """
         try:
             if not api.is_available():
-                return build_error_response("Tushare Pro 不可用", ErrorCode.PRO_REQUIRED)
+                return build_error_response("数据服务不可用（Pro 接口未配置）", ErrorCode.PRO_REQUIRED)
 
             kwargs = {"limit": limit}
             if start_m:
@@ -703,6 +845,39 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
             return {
                 "success": True,
                 "data": data,
+                "ui": _build_series_ui(
+                    title="货币供应量",
+                    subtitle=f"{len(data)} 个月",
+                    panels=[
+                        _build_series_panel(
+                            title="货币总量",
+                            data=data,
+                            x_field="month",
+                            series=[
+                                {"name": "M0", "field": "m0"},
+                                {"name": "M1", "field": "m1"},
+                                {"name": "M2", "field": "m2"},
+                            ],
+                            y_axes=[{"name": "亿元"}],
+                        ),
+                        _build_series_panel(
+                            title="同比增速",
+                            data=data,
+                            x_field="month",
+                            series=[
+                                {"name": "M0同比", "field": "m0_yoy"},
+                                {"name": "M1同比", "field": "m1_yoy"},
+                                {"name": "M2同比", "field": "m2_yoy"},
+                            ],
+                            y_axes=[{"name": "%", "format": "percent"}],
+                        ),
+                    ],
+                    stats=[
+                        {"label": "最新 M2同比", "value": _format_ui_value(m2_yoy, "%")},
+                        {"label": "货币政策", "value": policy},
+                        {"label": "M1-M2 剪刀差", "value": _format_ui_value(round(scissor, 2), "%")},
+                    ],
+                ),
                 "analysis": {
                     "m2_yoy": m2_yoy,
                     "monetary_policy": policy,
@@ -711,7 +886,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
                     "note": "M1-M2剪刀差为正表示资金活化，为负表示资金定期化"
                 },
                 "meta": {
-                    "data_source": "tushare_pro",
+                    "data_source": "findata_pro",
                     "count": len(data),
                     "unit": "亿元",
                     "fields": {
@@ -728,7 +903,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
             logger.error(f"❌ get_money_supply error: {e}")
             return build_error_response(f"获取货币供应量异常: {str(e)}", ErrorCode.UPSTREAM_ERROR)
 
-    @mcp.tool(tags={"宏观数据"})
+    @mcp.tool(tags={"宏观数据"}, app=SERIES_CHART_APP)
     async def get_interest_rates(
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
@@ -761,7 +936,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
         """
         try:
             if not api.is_available():
-                return build_error_response("Tushare Pro 不可用", ErrorCode.PRO_REQUIRED)
+                return build_error_response("数据服务不可用（Pro 接口未配置）", ErrorCode.PRO_REQUIRED)
 
             result = {}
 
@@ -819,11 +994,46 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
             if not result:
                 return build_error_response("未获取到利率数据", ErrorCode.NO_DATA)
 
+            lpr_latest = result.get("lpr_latest") or {}
+            shibor_latest = result.get("shibor_latest") or {}
             return {
                 "success": True,
                 "data": result,
+                "ui": _build_series_ui(
+                    title="利率走势",
+                    subtitle="LPR / SHIBOR",
+                    panels=[
+                        _build_series_panel(
+                            title="LPR",
+                            data=result.get("lpr", []),
+                            x_field="date",
+                            series=[
+                                {"name": "1年期LPR", "field": "lpr_1y"},
+                                {"name": "5年期LPR", "field": "lpr_5y"},
+                            ],
+                            y_axes=[{"name": "%", "format": "percent"}],
+                        ),
+                        _build_series_panel(
+                            title="SHIBOR",
+                            data=result.get("shibor", []),
+                            x_field="date",
+                            series=[
+                                {"name": "隔夜", "field": "overnight"},
+                                {"name": "1周", "field": "1w"},
+                                {"name": "1月", "field": "1m"},
+                                {"name": "3月", "field": "3m"},
+                            ],
+                            y_axes=[{"name": "%", "format": "percent"}],
+                        ),
+                    ],
+                    stats=[
+                        {"label": "最新 LPR 1Y", "value": _format_ui_value(lpr_latest.get("lpr_1y"), "%")},
+                        {"label": "最新 LPR 5Y", "value": _format_ui_value(lpr_latest.get("lpr_5y"), "%")},
+                        {"label": "最新隔夜 SHIBOR", "value": _format_ui_value(shibor_latest.get("overnight"), "%")},
+                    ],
+                ),
                 "meta": {
-                    "data_source": "tushare_pro",
+                    "data_source": "findata_pro",
                     "fields": {
                         "lpr_1y": "1年期LPR，影响短期贷款",
                         "lpr_5y": "5年期LPR，影响房贷",
@@ -838,7 +1048,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
             logger.error(f"❌ get_interest_rates error: {e}")
             return build_error_response(f"获取利率数据异常: {str(e)}", ErrorCode.UPSTREAM_ERROR)
 
-    @mcp.tool(tags={"宏观数据"})
+    @mcp.tool(tags={"宏观数据"}, app=SERIES_CHART_APP)
     async def get_ppi_data(
         start_m: Optional[str] = None,
         end_m: Optional[str] = None,
@@ -874,7 +1084,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
         """
         try:
             if not api.is_available():
-                return build_error_response("Tushare Pro 不可用", ErrorCode.PRO_REQUIRED)
+                return build_error_response("数据服务不可用（Pro 接口未配置）", ErrorCode.PRO_REQUIRED)
 
             kwargs = {"limit": limit}
             if start_m:
@@ -902,15 +1112,49 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
                     "consumer_yoy": float(row.get('ppi_cg_yoy', 0))     # 生活资料
                 })
 
+            latest = data[0] if data else {}
+            interpretation = "工业品价格下跌，企业面临降价压力" if data and data[0]['ppi_yoy'] < 0 else "工业品价格上涨"
             return {
                 "success": True,
                 "data": data,
+                "ui": _build_series_ui(
+                    title="PPI 趋势",
+                    subtitle=f"{len(data)} 个月",
+                    panels=[
+                        _build_series_panel(
+                            title="PPI 变化",
+                            data=data,
+                            x_field="month",
+                            series=[
+                                {"name": "同比", "field": "ppi_yoy"},
+                                {"name": "环比", "field": "ppi_mom"},
+                                {"name": "累计", "field": "ppi_accu"},
+                            ],
+                            y_axes=[{"name": "%", "format": "percent"}],
+                        ),
+                        _build_series_panel(
+                            title="分项走势",
+                            data=data,
+                            x_field="month",
+                            series=[
+                                {"name": "生产资料", "field": "production_yoy"},
+                                {"name": "生活资料", "field": "consumer_yoy"},
+                            ],
+                            y_axes=[{"name": "%", "format": "percent"}],
+                        ),
+                    ],
+                    stats=[
+                        {"label": "最新 PPI同比", "value": _format_ui_value(latest.get("ppi_yoy"), "%")},
+                        {"label": "判断", "value": interpretation},
+                        {"label": "样本数", "value": str(len(data))},
+                    ],
+                ),
                 "analysis": {
                     "latest_yoy": data[0]['ppi_yoy'] if data else None,
-                    "interpretation": "工业品价格下跌，企业面临降价压力" if data and data[0]['ppi_yoy'] < 0 else "工业品价格上涨"
+                    "interpretation": interpretation
                 },
                 "meta": {
-                    "data_source": "tushare_pro",
+                    "data_source": "findata_pro",
                     "count": len(data),
                     "fields": {
                         "ppi_yoy": "工业品出厂价格同比(%)",

@@ -9,6 +9,7 @@
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, timedelta
 from fastmcp import FastMCP
+from fastmcp.server.apps import AppConfig
 import pandas as pd
 import numpy as np
 import logging
@@ -28,6 +29,38 @@ from ..utils.technical_indicators import (
     calculate_obv, calculate_volume_ratio, calculate_atr, calculate_relative_strength,
     calculate_moving_averages
 )
+
+CORRELATION_MATRIX_APP = AppConfig(
+    resource_uri="ui://findata/correlation-matrix",
+    visibility=["model", "app"],
+)
+FINANCIAL_METRICS_CHART_APP = AppConfig(
+    resource_uri="ui://findata/financial-metrics-chart",
+    visibility=["model", "app"],
+)
+
+_METRIC_LABELS = {
+    "pe": "PE",
+    "pb": "PB",
+    "ps": "PS",
+    "dividend_yield": "股息率",
+    "roe": "ROE",
+    "roa": "ROA",
+    "grossprofit_margin": "毛利率",
+    "netprofit_margin": "净利率",
+    "debt_to_assets": "资产负债率",
+    "revenue": "营业收入",
+    "profit": "净利润",
+}
+
+_PERCENT_METRICS = {
+    "dividend_yield",
+    "roe",
+    "roa",
+    "grossprofit_margin",
+    "netprofit_margin",
+    "debt_to_assets",
+}
 
 
 def _calculate_metric_stats(values: pd.Series, calc_type: str) -> Dict[str, Any]:
@@ -108,10 +141,135 @@ def _align_stock_data(stock_data: Dict[str, pd.DataFrame]) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+def _metric_panel_from_stats(metric: str, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """将财务指标统计结果转换为图表 panel。"""
+    labels = payload.get("source_dates") or []
+    values = None
+    chart_type = "line"
+
+    if payload.get("values"):
+        values = payload["values"]
+    elif payload.get("yoy_growth_rates"):
+        values = payload["yoy_growth_rates"]
+        labels = labels[4:] if len(labels) >= len(values) + 4 else labels[-len(values):]
+    elif payload.get("ttm_values"):
+        values = payload["ttm_values"]
+        labels = labels[3:] if len(labels) >= len(values) + 3 else labels[-len(values):]
+    elif payload.get("cagr") is not None:
+        values = [payload["cagr"]]
+        labels = [labels[-1] if labels else "CAGR"]
+        chart_type = "bar"
+
+    if not values:
+        return None
+
+    if not labels or len(labels) != len(values):
+        labels = [f"P{i + 1}" for i in range(len(values))]
+
+    y_axis = {"name": "%", "format": "percent"} if metric in _PERCENT_METRICS else {"name": "数值"}
+    series_name = _METRIC_LABELS.get(metric, metric)
+    return {
+        "title": series_name,
+        "categories": [str(item) for item in labels],
+        "series": [{"name": series_name, "data": values, "type": chart_type}],
+        "yAxis": y_axis,
+        "note": f"分位数 {payload['percentile']}%" if payload.get("percentile") is not None else None,
+    }
+
+
+def _build_financial_metrics_ui(ts_code: str, period: str, calc_type: str, metrics_payload: Dict[str, Any]) -> Dict[str, Any]:
+    """构建财务指标图表 view model。"""
+    cards = []
+    panels = []
+
+    for metric, payload in metrics_payload.items():
+        if not isinstance(payload, dict):
+            continue
+        panel = _metric_panel_from_stats(metric, payload)
+        if panel:
+            panels.append(panel)
+
+        latest_value = payload.get("current")
+        if latest_value is None:
+            latest_value = payload.get("latest")
+        if latest_value is None and payload.get("cagr") is not None:
+            latest_value = payload.get("cagr")
+
+        if latest_value is not None:
+            suffix = "%" if metric in _PERCENT_METRICS or payload.get("cagr") is not None else ""
+            note = None
+            if payload.get("percentile") is not None:
+                note = f"历史分位 {payload['percentile']}%"
+            cards.append({
+                "label": _METRIC_LABELS.get(metric, metric),
+                "value": f"{round(float(latest_value), 2)}{suffix}" if isinstance(latest_value, (int, float, np.floating)) else f"{latest_value}{suffix}",
+                "note": note,
+            })
+
+    return {
+        "kind": "financial-metrics-chart",
+        "title": f"{ts_code} 财务指标趋势",
+        "subtitle": f"{period} · {calc_type}",
+        "cards": cards,
+        "panels": panels,
+    }
+
+
+def _build_correlation_ui(title: str, subtitle: str, correlation_matrix: Dict[str, Dict[str, Any]], time_series: Dict[str, List[Dict[str, Any]]], stock_names: Dict[str, str]) -> Dict[str, Any]:
+    """构建相关性矩阵图表 view model。"""
+    labels = list(correlation_matrix.keys())
+    sorted_series = {
+        code: sorted(series, key=lambda item: str(item.get("date") or ""))
+        for code, series in time_series.items()
+    }
+
+    best_pair = None
+    worst_pair = None
+    for i, left in enumerate(labels):
+        for right in labels[i + 1:]:
+            value = correlation_matrix.get(left, {}).get(right)
+            if value is None:
+                continue
+            pair = {
+                "left": stock_names.get(left, left),
+                "right": stock_names.get(right, right),
+                "value": round(float(value), 3),
+            }
+            if best_pair is None or value > best_pair["value"]:
+                best_pair = pair
+            if worst_pair is None or value < worst_pair["value"]:
+                worst_pair = pair
+
+    stats = []
+    if best_pair:
+        stats.append({
+            "label": "最强正相关",
+            "value": f"{best_pair['left']} / {best_pair['right']}",
+            "note": f"{best_pair['value']}",
+        })
+    if worst_pair:
+        stats.append({
+            "label": "最弱相关",
+            "value": f"{worst_pair['left']} / {worst_pair['right']}",
+            "note": f"{worst_pair['value']}",
+        })
+
+    return {
+        "kind": "correlation-matrix",
+        "title": title,
+        "subtitle": subtitle,
+        "labels": labels,
+        "stockNames": stock_names,
+        "correlationMatrix": correlation_matrix,
+        "timeSeries": sorted_series,
+        "stats": stats,
+    }
+
+
 def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
     """注册高级分析工具"""
 
-    @mcp.tool(tags={"量化分析"})
+    @mcp.tool(tags={"量化分析"}, app=FINANCIAL_METRICS_CHART_APP)
     async def get_financial_metrics(
         ts_code: str = "",
         stock_code: str = "",
@@ -165,7 +323,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                 return {"success": False, "error": f"财务指标仅支持A股，当前代码 {ts_code} 为{'港股' if _market == 'HK' else '美股'}"}
 
             if not api.is_available():
-                return {"success": False, "error": "Tushare Pro not available"}
+                return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
 
             # 计算时间范围
             period_limits = {
@@ -207,6 +365,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                                 result["metrics"]["pe"]["current"] = pe_values.iloc[-1]
                                 result["metrics"]["pe"]["field"] = "pe_ttm"
                                 result["metrics"]["pe"]["percentile"] = calculate_pe_percentile(ts_code, api)
+                                result["metrics"]["pe"]["source_dates"] = daily_basic_df.loc[pe_values.index, "trade_date"].astype(str).tolist()
 
                         if "pb" in metrics:
                             pb_values = daily_basic_df['pb'].dropna()
@@ -214,6 +373,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                                 result["metrics"]["pb"] = _calculate_metric_stats(pb_values, calc_type)
                                 result["metrics"]["pb"]["current"] = pb_values.iloc[-1]
                                 result["metrics"]["pb"]["percentile"] = calculate_pb_percentile(ts_code, api)
+                                result["metrics"]["pb"]["source_dates"] = daily_basic_df.loc[pb_values.index, "trade_date"].astype(str).tolist()
 
                         if "ps" in metrics:
                             ps_values = daily_basic_df['ps_ttm'].dropna()
@@ -221,6 +381,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                                 result["metrics"]["ps"] = _calculate_metric_stats(ps_values, calc_type)
                                 result["metrics"]["ps"]["current"] = ps_values.iloc[-1]
                                 result["metrics"]["ps"]["field"] = "ps_ttm"
+                                result["metrics"]["ps"]["source_dates"] = daily_basic_df.loc[ps_values.index, "trade_date"].astype(str).tolist()
 
                         if "dividend_yield" in metrics:
                             dv_values = daily_basic_df['dv_ttm'].dropna()
@@ -228,6 +389,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                                 result["metrics"]["dividend_yield"] = _calculate_metric_stats(dv_values, calc_type)
                                 result["metrics"]["dividend_yield"]["current"] = dv_values.iloc[-1]
                                 result["metrics"]["dividend_yield"]["field"] = "dv_ttm"
+                                result["metrics"]["dividend_yield"]["source_dates"] = daily_basic_df.loc[dv_values.index, "trade_date"].astype(str).tolist()
 
                 except Exception as e:
                     result["metrics"]["valuation_error"] = f"获取估值数据失败: {str(e)}"
@@ -242,7 +404,8 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                 )
 
                 if not fina_indicator_df.empty:
-                    fina_indicator_df = fina_indicator_df.sort_values('end_date')
+                    if 'end_date' in fina_indicator_df.columns:
+                        fina_indicator_df = fina_indicator_df.sort_values('end_date')
 
                     # 处理财务指标
                     for metric in metrics:
@@ -260,6 +423,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                                 if len(values) > 0:
                                     result["metrics"][metric] = _calculate_metric_stats(values, calc_type)
                                     result["metrics"][metric]["current"] = values.iloc[-1]
+                                    result["metrics"][metric]["source_dates"] = fina_indicator_df.loc[values.index, "end_date"].astype(str).tolist()
 
             except Exception as e:
                 result["metrics"]["financial_error"] = f"获取财务数据失败: {str(e)}"
@@ -274,7 +438,8 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                 )
 
                 if not income_df.empty:
-                    income_df = income_df.sort_values('end_date')
+                    if 'end_date' in income_df.columns:
+                        income_df = income_df.sort_values('end_date')
 
                     revenue_col = 'total_revenue' if 'total_revenue' in income_df.columns else 'revenue'
                     profit_col = 'n_income' if 'n_income' in income_df.columns else 'net_profit'
@@ -284,18 +449,21 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                         if len(revenue_values) > 0:
                             result["metrics"]["revenue"] = _calculate_metric_stats(revenue_values, calc_type)
                             result["metrics"]["revenue"]["current"] = revenue_values.iloc[-1]
+                            result["metrics"]["revenue"]["source_dates"] = income_df.loc[revenue_values.index, "end_date"].astype(str).tolist()
 
                     if "profit" in metrics and profit_col in income_df.columns:
                         profit_values = income_df[profit_col].dropna()
                         if len(profit_values) > 0:
                             result["metrics"]["profit"] = _calculate_metric_stats(profit_values, calc_type)
                             result["metrics"]["profit"]["current"] = profit_values.iloc[-1]
+                            result["metrics"]["profit"]["source_dates"] = income_df.loc[profit_values.index, "end_date"].astype(str).tolist()
 
             except Exception as e:
                 result["metrics"]["income_error"] = f"获取利润表数据失败: {str(e)}"
 
             if result["metrics"]:
                 result["success"] = True
+                result["ui"] = _build_financial_metrics_ui(ts_code, period, calc_type, result["metrics"])
                 return result
             else:
                 return {
@@ -311,7 +479,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                 "ts_code": ts_code if 'ts_code' in locals() else None
             }
 
-    @mcp.tool(tags={"量化分析"})
+    @mcp.tool(tags={"量化分析"}, app=CORRELATION_MATRIX_APP)
     async def analyze_price_correlation(
         stock_codes: List[str],
         start_date: str = None,
@@ -373,7 +541,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
         date_adjust_msg = ""  # 🔥 日期调整说明
         try:
             if not api.is_available():
-                return {"success": False, "error": "Tushare Pro not available"}
+                return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
 
             # 🔥 日期容错：自动调整结束日期到最近交易日
             end_date, date_adjust_msg = await _adjust_end_date_to_latest_trading_day(cache, api, end_date)
@@ -598,6 +766,15 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
 
             result["stock_names"] = stock_names
 
+            if result.get("correlation_matrix") and result.get("time_series"):
+                result["ui"] = _build_correlation_ui(
+                    title="价格相关性矩阵",
+                    subtitle=f"{start_date} - {end_date} · {len(stock_names)} 个标的",
+                    correlation_matrix=result["correlation_matrix"],
+                    time_series=result["time_series"],
+                    stock_names=stock_names,
+                )
+
             return result
 
         except Exception as e:
@@ -673,7 +850,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
         date_adjust_msg = ""  # 🔥 日期调整说明
         try:
             if not api.is_available():
-                return {"success": False, "error": "Tushare Pro not available"}
+                return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
             
             # 🔥 日期容错：自动调整结束日期到最近交易日
             end_date, date_adjust_msg = await _adjust_end_date_to_latest_trading_day(cache, api, end_date)
@@ -825,7 +1002,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                 "stock_codes": stock_codes
             }
 
-    @mcp.tool(tags={"量化分析"})
+    @mcp.tool(tags={"量化分析"}, app=CORRELATION_MATRIX_APP)
     async def calculate_metrics(stock_codes: List[str], start_date: str = None, end_date: str = None, metric: str = "close") -> Dict[str, Any]:
         """
         计算一组股票的金融指标（相关性矩阵）
@@ -907,7 +1084,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
         date_adjust_msg = ""  # 🔥 日期调整说明
         try:
             if not api.is_available():
-                return {"success": False, "error": "Tushare Pro not available"}
+                return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
             
             # 🔥 日期容错：自动调整结束日期到最近交易日
             end_date, date_adjust_msg = await _adjust_end_date_to_latest_trading_day(cache, api, end_date)
@@ -978,7 +1155,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
             # 透视表：行=日期，列=股票代码，值=metric
             pivot_df = df_all.pivot(index='trade_date', columns='ts_code', values=metric)
 
-            # 按日期排序（Tushare返回可能是倒序）
+            # 按日期排序（上游API返回可能是倒序）
             pivot_df = pivot_df.sort_index()
 
             if pivot_df.empty:
@@ -1110,7 +1287,14 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                 "time_series": time_series,
                 # 🔥 新增：资源 URI，支持前端按需加载派生指标
                 "calc_id": calc_id,
-                "resource_uri": f"stock://calc_metrics/{calc_id}"
+                "resource_uri": f"stock://calc_metrics/{calc_id}",
+                "ui": _build_correlation_ui(
+                    title=f"{metric} 相关性矩阵",
+                    subtitle=f"{start_date} - {end_date} · {len(ts_codes_list)} 个标的",
+                    correlation_matrix=safe_corr_dict,
+                    time_series=time_series,
+                    stock_names=stock_names,
+                ),
             }
             
             # 🔥 添加日期调整说明（如果有的话）

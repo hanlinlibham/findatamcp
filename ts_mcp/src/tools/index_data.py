@@ -6,9 +6,10 @@
 - get_industry_overview: 行业分类与成分查询（申万/中信）
 """
 
-from typing import Dict, Any, Optional
+from typing import Literal, Dict, Any, Optional
 from datetime import datetime
 from fastmcp import FastMCP
+from fastmcp.server.apps import AppConfig
 import logging
 
 from ..cache import cache
@@ -17,6 +18,73 @@ from ..utils.large_data_handler import handle_large_data
 from .constants import READONLY_ANNOTATIONS
 
 logger = logging.getLogger(__name__)
+
+SERIES_CHART_APP = AppConfig(
+    resource_uri="ui://findata/series-chart",
+    visibility=["model", "app"],
+)
+
+
+def _build_index_valuation_ui(ts_code: str, rows: list[dict[str, Any]]) -> Dict[str, Any]:
+    """构建指数估值通用图表 view model。"""
+    chart_rows = sorted(rows, key=lambda item: str(item.get("trade_date") or ""))
+    latest = chart_rows[-1] if chart_rows else {}
+    sample = chart_rows[-1] if chart_rows else {}
+
+    panels = []
+
+    valuation_series = []
+    for field, name in [("pe", "PE"), ("pe_ttm", "PE_TTM"), ("pb", "PB")]:
+        if field in sample:
+            valuation_series.append({"name": name, "field": field})
+    if valuation_series:
+        panels.append({
+            "title": "估值指标",
+            "xField": "trade_date",
+            "data": chart_rows,
+            "series": valuation_series,
+            "yAxes": [{"name": "倍数"}],
+        })
+
+    mv_series = []
+    for field, name in [("total_mv", "总市值"), ("float_mv", "流通市值")]:
+        if field in sample:
+            mv_series.append({"name": name, "field": field})
+    if mv_series:
+        panels.append({
+            "title": "市值变化",
+            "xField": "trade_date",
+            "data": chart_rows,
+            "series": mv_series,
+            "yAxes": [{"name": "亿元"}],
+        })
+
+    turnover_series = []
+    for field, name in [("turnover_rate", "换手率"), ("turnover_rate_f", "自由流通换手率")]:
+        if field in sample:
+            turnover_series.append({"name": name, "field": field})
+    if turnover_series:
+        panels.append({
+            "title": "市场活跃度",
+            "xField": "trade_date",
+            "data": chart_rows,
+            "series": turnover_series,
+            "yAxes": [{"name": "%", "format": "percent"}],
+        })
+
+    stats = [{"label": "样本数", "value": str(len(chart_rows))}]
+    for field, label in [("pe", "最新PE"), ("pe_ttm", "最新PE_TTM"), ("pb", "最新PB"), ("turnover_rate", "最新换手率")]:
+        if latest.get(field) is not None:
+            suffix = "%" if "turnover" in field else ""
+            stats.append({"label": label, "value": f"{latest.get(field)}{suffix}"})
+
+    return {
+        "kind": "series-chart",
+        "title": f"{ts_code} 指数估值走势",
+        "subtitle": f"{len(chart_rows)} 条记录",
+        "stats": stats,
+        "panels": panels,
+    }
 
 
 def register_index_tools(mcp: FastMCP, api: TushareAPI):
@@ -39,7 +107,7 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
         """
         try:
             if not api.is_available():
-                return {"success": False, "error": "Tushare Pro not available"}
+                return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
 
             kwargs = {"index_code": index_code}
             if trade_date:
@@ -87,7 +155,7 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
                 "index_code": index_code
             }
 
-    @mcp.tool(tags={"指数数据"}, annotations=READONLY_ANNOTATIONS)
+    @mcp.tool(tags={"指数数据"}, annotations=READONLY_ANNOTATIONS, app=SERIES_CHART_APP)
     async def get_index_valuation(
         ts_code: str = "",
         stock_code: str = "",
@@ -106,7 +174,11 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
         """
         try:
             if not api.is_available():
-                return {"success": False, "error": "Tushare Pro not available"}
+                return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
+
+            ts_code = ts_code or stock_code or code
+            if not ts_code:
+                return {"success": False, "error": "请提供指数代码（参数名: ts_code, stock_code 或 code）"}
 
             kwargs = {"ts_code": ts_code}
             if trade_date:
@@ -157,8 +229,10 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
             large = handle_large_data(data, "get_index_valuation", {"ts_code": ts_code, "trade_date": trade_date})
             if "is_truncated" in large:
                 result.update(large)
+                result["ui"] = _build_index_valuation_ui(ts_code, large.get("preview", []))
             else:
                 result["data"] = large["data"]
+                result["ui"] = _build_index_valuation_ui(ts_code, large["data"])
             return result
 
         except Exception as e:
@@ -170,7 +244,7 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
 
     @mcp.tool(tags={"指数数据"}, annotations=READONLY_ANNOTATIONS)
     async def get_industry_overview(
-        action: str,
+        action: Literal["classify", "sw_members", "ci_members"],
         level: Optional[str] = None,
         src: Optional[str] = None,
         index_code: Optional[str] = None,
@@ -179,7 +253,7 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
         """行业分类与成分股查询（申万/中信）
 
         Args:
-            action: classify(行业分类列表) / sw_members(申万成分股) / ci_members(中信成分股)
+            action: 仅支持以下 3 个值（区分大小写）：classify(行业分类列表) / sw_members(申万成分股) / ci_members(中信成分股)。不要传其他值
             level: 行业级别，仅 classify 用，L1/L2/L3
             src: 分类来源，仅 classify 用，如 "SW2021"
             index_code: 行业指数代码，如 "801010.SI"
@@ -187,7 +261,7 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
         """
         try:
             if not api.is_available():
-                return {"success": False, "error": "Tushare Pro not available"}
+                return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
 
             if action == "classify":
                 kwargs = {}

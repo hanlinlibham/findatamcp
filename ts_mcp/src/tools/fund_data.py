@@ -9,6 +9,7 @@
 from typing import Dict, Any, Optional
 from datetime import datetime
 from fastmcp import FastMCP
+from fastmcp.server.apps import AppConfig
 import asyncio
 import logging
 
@@ -17,6 +18,42 @@ from ..utils.tushare_api import TushareAPI
 from .constants import READONLY_ANNOTATIONS
 
 logger = logging.getLogger(__name__)
+
+FUND_NAV_CHART_APP = AppConfig(
+    resource_uri="ui://findata/fund-nav-chart",
+    visibility=["model", "app"],
+)
+
+
+def _build_fund_nav_ui(ts_code: str, data: list[dict[str, Any]]) -> Dict[str, Any]:
+    """构建基金净值图表的轻量 view model。"""
+    chart_data = sorted(data, key=lambda item: str(item.get("nav_date") or ""))
+    latest = chart_data[-1] if chart_data else {}
+
+    series = [
+        {"name": "单位净值", "field": "unit_nav"},
+        {"name": "累计净值", "field": "accum_nav"},
+    ]
+    if any(item.get("adj_nav") not in (None, 0) for item in chart_data):
+        series.append({"name": "复权净值", "field": "adj_nav"})
+
+    stats = [
+        {"label": "最新日期", "value": str(latest.get("nav_date") or "-")},
+        {"label": "最新单位净值", "value": f"{latest.get('unit_nav', '-')}" if latest else "-"},
+        {"label": "最新累计净值", "value": f"{latest.get('accum_nav', '-')}" if latest else "-"},
+    ]
+    if latest.get("adj_nav") not in (None, 0):
+        stats.append({"label": "最新复权净值", "value": f"{latest.get('adj_nav')}"})
+
+    return {
+        "kind": "fund-nav-chart",
+        "title": f"{ts_code} 基金净值走势",
+        "subtitle": f"{len(chart_data)} 条记录",
+        "data": chart_data,
+        "xField": "nav_date",
+        "series": series,
+        "stats": stats,
+    }
 
 
 def register_fund_tools(mcp: FastMCP, api: TushareAPI):
@@ -31,7 +68,7 @@ def register_fund_tools(mcp: FastMCP, api: TushareAPI):
         """
         try:
             if not api.is_available():
-                return {"success": False, "error": "Tushare Pro not available"}
+                return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
 
             result: Dict[str, Any] = {"success": True, "ts_code": ts_code}
 
@@ -157,7 +194,7 @@ def register_fund_tools(mcp: FastMCP, api: TushareAPI):
         except Exception as e:
             return {"success": False, "error": f"获取基金数据异常: {str(e)}", "ts_code": ts_code}
 
-    @mcp.tool(tags={"基金数据"}, annotations=READONLY_ANNOTATIONS)
+    @mcp.tool(tags={"基金数据"}, annotations=READONLY_ANNOTATIONS, app=FUND_NAV_CHART_APP)
     async def get_fund_nav(
         ts_code: str = "",
         stock_code: str = "",
@@ -176,7 +213,11 @@ def register_fund_tools(mcp: FastMCP, api: TushareAPI):
         """
         try:
             if not api.is_available():
-                return {"success": False, "error": "Tushare Pro not available"}
+                return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
+
+            ts_code = ts_code or stock_code or code
+            if not ts_code:
+                return {"success": False, "error": "请提供基金代码（参数名: ts_code, stock_code 或 code）"}
 
             kwargs: Dict[str, Any] = {"ts_code": ts_code}
             if start_date:
@@ -203,6 +244,7 @@ def register_fund_tools(mcp: FastMCP, api: TushareAPI):
                 "ts_code": ts_code,
                 "count": len(data),
                 "data": data,
+                "ui": _build_fund_nav_ui(ts_code, data),
                 "timestamp": datetime.now().isoformat(),
             }
 
@@ -230,7 +272,7 @@ def register_fund_tools(mcp: FastMCP, api: TushareAPI):
         """
         try:
             if not api.is_available():
-                return {"success": False, "error": "Tushare Pro not available"}
+                return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
 
             if not ts_code and not symbol and not ann_date and not period:
                 return {
