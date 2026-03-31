@@ -1,12 +1,12 @@
 /**
- * PM2 配置文件 - Tushare MCP 服务器 (本地开发)
+ * PM2 配置文件 - AbleMind FinData MCP 服务器 (本地开发)
  *
  * 使用方式：
  *   启动: pm2 start pm2.config.js
- *   停止: pm2 stop tushare-mcp
- *   重启: pm2 restart tushare-mcp
+ *   停止: pm2 stop findata-mcp
+ *   重启: pm2 restart findata-mcp
  *   查看: pm2 list
- *   日志: pm2 logs tushare-mcp
+ *   日志: pm2 logs findata-mcp
  */
 
 const path = require('path');
@@ -32,7 +32,7 @@ const config = isLocal ? {
 module.exports = {
   apps: [
     {
-      name: 'tushare-mcp',
+      name: 'findata-mcp',
       script: config.pythonPath,
       args: 'src/server.py',
       cwd: config.mcpDir,
@@ -48,8 +48,8 @@ module.exports = {
       max_memory_restart: '2G',
 
       // 日志配置
-      error_file: path.join(config.logDir, 'tushare-mcp-error.log'),
-      out_file: path.join(config.logDir, 'tushare-mcp-out.log'),
+      error_file: path.join(config.logDir, 'findata-mcp-error.log'),
+      out_file: path.join(config.logDir, 'findata-mcp-out.log'),
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       merge_logs: true,
 

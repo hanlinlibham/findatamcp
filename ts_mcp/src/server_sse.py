@@ -1,5 +1,5 @@
 """
-Tushare MCP 服务器 - SSE 版本
+AbleMind FinData MCP 服务器 - SSE 版本
 
 使用 Server-Sent Events (SSE) 传输协议的 MCP 服务器。
 SSE 适用于需要通过 HTTP 进行单向服务器推送的场景。
@@ -17,7 +17,7 @@ SSE 适用于需要通过 HTTP 进行单向服务器推送的场景。
     MCP_PORT=8006 python src/server_sse.py
 
 环境变量：
-    TUSHARE_TOKEN - Tushare Pro API Token（必需）
+    TUSHARE_TOKEN - 金融数据 Pro API Token（必需）
     BACKEND_API_URL - 后端API地址（默认 http://localhost:8004）
     MCP_HOST - 服务器地址（默认 0.0.0.0）
     MCP_PORT - 服务器端口（默认 8006）
@@ -86,8 +86,8 @@ def create_mcp_server() -> FastMCP:
 
     # 创建 MCP 实例
     mcp = FastMCP(
-        name="tushare-data",
-        instructions="""Tushare 数据服务 - SSE 版本
+        name="ablemind-findata",
+        instructions="""AbleMind 金融数据服务 - SSE 版本
 
 提供中国 A 股市场的专业金融数据服务，包含 32 个工具：
 - 市场数据：股票行情、历史数据、涨跌停信息
@@ -143,7 +143,7 @@ def create_mcp_server() -> FastMCP:
 def main():
     """主函数 - SSE 版本"""
     logger.info("=" * 80)
-    logger.info("🚀 Starting Tushare MCP Server (SSE Version)")
+    logger.info("🚀 Starting AbleMind FinData MCP Server (SSE Version)")
     logger.info("=" * 80)
     logger.info(f"📊 Configuration:")
     logger.info(f"   - Host: {config.HOST}")

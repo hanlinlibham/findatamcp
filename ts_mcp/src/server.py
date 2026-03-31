@@ -2,7 +2,7 @@
 MCP 服务器主入口（模块化版本）
 
 这是新的主入口文件，展示重构后的架构。
-当前状态：部分工具已模块化，其余工具仍使用原 tushare_server.py
+当前状态：部分工具已模块化，其余工具仍使用原始入口
 """
 
 import logging
@@ -27,7 +27,6 @@ except ImportError:
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fastmcp import FastMCP
-from fastmcp.server.transforms.visibility import Visibility
 import uvicorn
 
 from src.config import config
@@ -172,10 +171,9 @@ def create_mcp_server() -> FastMCP:
 
     # 创建 MCP 实例
     mcp = FastMCP(
-        name="tushare-data",
+        name="ablemind-findata",
         instructions=(
             "专业A股金融数据服务。工具按分类组织：市场统计、行情数据、行业板块、量化分析、财务数据、搜索、宏观数据、指数数据。\n"
-            "启动时只显示核心工具。调用 focus_category(分类名) 解锁某分类全部工具，调用 show_all_tools() 查看全部。"
             "调用 get_tool_manifest 查看完整工具清单。"
         ),
         lifespan=server_lifespan,
@@ -223,25 +221,7 @@ def create_mcp_server() -> FastMCP:
     # 注册数据下载路由
     register_data_routes(mcp)
 
-    # 渐进披露：全局 Visibility Transforms
-    # 默认只显示核心入口工具 + 导航工具，其余通过 focus_category / show_all_tools 解锁
-    CORE_TOOLS = {
-        "get_latest_daily_close",   # 行情数据入口
-        "get_market_summary",       # 市场统计入口
-        "search_stocks",            # 搜索入口
-        "get_macro_summary",        # 宏观数据入口
-    }
-
-    # 1. 全局隐藏所有工具
-    mcp.add_transform(Visibility(enabled=False, match_all=True))
-    # 2. 全局显示核心入口工具
-    mcp.add_transform(Visibility(enabled=True, names=CORE_TOOLS))
-    # 3. 全局显示导航工具 (get_tool_manifest, focus_category, show_all_tools)
-    mcp.add_transform(Visibility(enabled=True, tags={"导航"}))
-    # Re-enable all resources and templates (Visibility match_all hides them too)
-    mcp.add_transform(Visibility(enabled=True, components={"resource", "template"}))
-
-    logger.info("✅ MCP Server initialized with progressive disclosure")
+    logger.info("✅ MCP Server initialized (all tools visible)")
 
     return mcp
 
@@ -249,7 +229,7 @@ def create_mcp_server() -> FastMCP:
 def main():
     """主函数"""
     logger.info("=" * 80)
-    logger.info("🚀 Starting Tushare MCP Server (Modular Version)")
+    logger.info("🚀 Starting AbleMind FinData MCP Server (Modular Version)")
     logger.info("=" * 80)
     logger.info(f"📊 Configuration:")
     logger.info(f"   - Host: {config.HOST}")

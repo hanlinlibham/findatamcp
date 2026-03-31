@@ -1,12 +1,12 @@
 /**
- * PM2 配置文件 - Tushare MCP 服务器 (SSE + HTTP 双版本)
+ * PM2 配置文件 - AbleMind FinData MCP 服务器 (SSE + HTTP 双版本)
  *
  * 使用方式：
  *   启动: pm2 start pm2.dual.config.js
- *   停止: pm2 stop tushare-mcp-sse tushare-mcp-http
- *   重启: pm2 restart tushare-mcp-sse tushare-mcp-http
+ *   停止: pm2 stop findata-mcp-sse findata-mcp-http
+ *   重启: pm2 restart findata-mcp-sse findata-mcp-http
  *   查看: pm2 list
- *   日志: pm2 logs tushare-mcp-sse / pm2 logs tushare-mcp-http
+ *   日志: pm2 logs findata-mcp-sse / pm2 logs findata-mcp-http
  */
 
 const path = require('path');
@@ -33,7 +33,7 @@ module.exports = {
   apps: [
     // SSE 版本 - 端口 8006
     {
-      name: 'tushare-mcp-sse',
+      name: 'findata-mcp-sse',
       script: config.pythonPath,
       args: 'src/server_sse.py',
       cwd: config.mcpDir,
@@ -49,8 +49,8 @@ module.exports = {
       max_memory_restart: '2G',
 
       // 日志配置
-      error_file: path.join(config.logDir, 'tushare-mcp-sse-error.log'),
-      out_file: path.join(config.logDir, 'tushare-mcp-sse-out.log'),
+      error_file: path.join(config.logDir, 'findata-mcp-sse-error.log'),
+      out_file: path.join(config.logDir, 'findata-mcp-sse-out.log'),
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       merge_logs: true,
 
@@ -70,7 +70,7 @@ module.exports = {
 
     // HTTP 版本 - 端口 8111
     {
-      name: 'tushare-mcp-http',
+      name: 'findata-mcp-http',
       script: config.pythonPath,
       args: 'src/server.py',
       cwd: config.mcpDir,
@@ -86,8 +86,8 @@ module.exports = {
       max_memory_restart: '2G',
 
       // 日志配置
-      error_file: path.join(config.logDir, 'tushare-mcp-http-error.log'),
-      out_file: path.join(config.logDir, 'tushare-mcp-http-out.log'),
+      error_file: path.join(config.logDir, 'findata-mcp-http-error.log'),
+      out_file: path.join(config.logDir, 'findata-mcp-http-out.log'),
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       merge_logs: true,
 
