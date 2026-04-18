@@ -24,3 +24,15 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local backups
+*.bak
+*.bak.*
+src.bak.*/
+src.bak_*/
+
+# One-off patch scripts
+patch_*.py
+
+# Personal TODOs
+docs/*-todo-*.md
