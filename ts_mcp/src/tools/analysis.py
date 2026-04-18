@@ -126,8 +126,15 @@ def _align_stock_data(stock_data: Dict[str, pd.DataFrame]) -> pd.DataFrame:
             df_copy = df.copy()
             df_copy['trade_date'] = pd.to_datetime(df_copy['trade_date'])
             df_copy.set_index('trade_date', inplace=True)
-            df_copy = df_copy[['close']]  # 只保留收盘价
-            df_copy.columns = [f"{ts_code}_close"]
+            # 保留 close 和 pre_close（用于正确计算区间涨跌幅）
+            keep_cols = ['close']
+            if 'pre_close' in df_copy.columns:
+                keep_cols.append('pre_close')
+            df_copy = df_copy[keep_cols]
+            rename_map = {'close': f"{ts_code}_close"}
+            if 'pre_close' in df_copy.columns:
+                rename_map['pre_close'] = f"{ts_code}_pre_close"
+            df_copy = df_copy.rename(columns=rename_map)
             # 计算收益率
             df_copy[f"{ts_code}_returns"] = df_copy[f"{ts_code}_close"].pct_change()
             aligned_dfs.append(df_copy)
@@ -690,8 +697,13 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                     stock_returns = aligned_data[f"{ts_code}_returns"]
 
                     if not stock_prices.empty:
-                        # 计算业绩指标
-                        total_return = (stock_prices.iloc[-1] / stock_prices.iloc[0] - 1) * 100
+                        # 计算业绩指标（优先用 pre_close 作为基准，覆盖假期跳空）
+                        pre_close_col = f"{ts_code}_pre_close"
+                        if pre_close_col in aligned_data.columns and pd.notna(aligned_data[pre_close_col].iloc[0]):
+                            _base = aligned_data[pre_close_col].iloc[0]
+                        else:
+                            _base = stock_prices.iloc[0]
+                        total_return = (stock_prices.iloc[-1] / _base - 1) * 100
                         volatility = stock_returns.std() * np.sqrt(252) * 100  # 年化波动率
                         sharpe = calculate_sharpe_ratio(stock_returns.values) if len(stock_returns.dropna()) > 0 else None
                         max_drawdown = calculate_max_drawdown(stock_prices.values)
@@ -920,13 +932,18 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                 result["date_adjust_message"] = date_adjust_msg
 
             close_prices = df['close'].values
+            # 区间基准价：优先用首日 pre_close（前一交易日收盘），正确覆盖假期跳空
+            if 'pre_close' in df.columns and pd.notna(df['pre_close'].iloc[0]):
+                _base_px = float(df['pre_close'].iloc[0])
+            else:
+                _base_px = float(close_prices[0])
             returns = np.diff(np.log(close_prices))
 
             # 基础业绩分析
             if analysis_type in ["comprehensive", "performance"]:
                 result["performance"] = {
-                    "total_return": ((close_prices[-1] / close_prices[0]) - 1) * 100,
-                    "annual_return": (((close_prices[-1] / close_prices[0]) ** (252 / len(close_prices))) - 1) * 100,
+                    "total_return": ((close_prices[-1] / _base_px) - 1) * 100,
+                    "annual_return": (((close_prices[-1] / _base_px) ** (252 / len(close_prices))) - 1) * 100,
                     "volatility": np.std(returns) * np.sqrt(252) * 100,
                     "sharpe_ratio": calculate_sharpe_ratio(returns),
                     "max_drawdown": calculate_max_drawdown(close_prices),

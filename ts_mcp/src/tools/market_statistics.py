@@ -509,9 +509,11 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
 
     @mcp.tool(tags={"市场统计"}, app=DATA_TABLE_APP)
     async def get_batch_pct_chg(
-        stock_codes: List[str],
-        start_date: str,
-        end_date: Optional[str] = None
+        stock_codes: Optional[List[str]] = None,
+        start_date: str = "",
+        end_date: Optional[str] = None,
+        ts_codes: Optional[List[str]] = None,  # 兼容别名
+        codes: Optional[List[str]] = None  # 兼容别名
     ) -> Union[ToolResult, Dict[str, Any]]:
         """
         【批量涨跌幅】计算多只股票的区间累计涨跌幅，并返回均值
@@ -560,11 +562,16 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
             }
         """
         try:
+            # 兼容别名参数
+            stock_codes = stock_codes or ts_codes or codes
+            if not start_date:
+                return build_error_response("请提供开始日期（参数名: start_date）", ErrorCode.SCHEMA_ERROR)
+
             if not api.is_available():
                 return build_error_response("数据服务不可用（Pro 接口未配置）", ErrorCode.PRO_REQUIRED)
 
             if not stock_codes:
-                return build_error_response("股票代码列表不能为空", ErrorCode.SCHEMA_ERROR)
+                return build_error_response("股票代码列表不能为空（参数名: stock_codes, ts_codes 或 codes）", ErrorCode.SCHEMA_ERROR)
 
             # 日期处理
             if not end_date:
@@ -671,7 +678,7 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
                         continue
 
                     df = df.sort_values('trade_date')
-                    start_price = float(df['close'].iloc[0])
+                    start_price = float(df['pre_close'].iloc[0]) if 'pre_close' in df.columns and pd.notna(df['pre_close'].iloc[0]) else float(df['close'].iloc[0])
                     end_price = float(df['close'].iloc[-1])
                     pct_change = round((end_price / start_price - 1) * 100, 4)
 

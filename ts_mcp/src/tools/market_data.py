@@ -8,6 +8,7 @@
 """
 
 import asyncio
+import pandas as pd
 from typing import Dict, Any, Optional, Union
 from datetime import datetime, timedelta
 from fastmcp import FastMCP
@@ -29,6 +30,14 @@ MONEYFLOW_CHART_APP = AppConfig(
     resource_uri="ui://findata/moneyflow-chart",
     visibility=["model", "app"],
 )
+
+
+
+def _base_price(df):
+    """区间起始基准价：优先用首日 pre_close（前一交易日收盘），正确覆盖假期跳空"""
+    if "pre_close" in df.columns and pd.notna(df["pre_close"].iloc[0]):
+        return float(df["pre_close"].iloc[0])
+    return float(df["close"].iloc[0])
 
 
 def register_market_tools(mcp: FastMCP, api: TushareAPI):
@@ -122,7 +131,7 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
                                 "max_single_day_loss": float(df['pct_chg'].min())
                             },
                             "trend_statistics": {
-                                "total_change": float(((df['close'].iloc[-1] / df['close'].iloc[0]) - 1) * 100) if len(df) > 0 else 0
+                                "total_change": round(float(((df['close'].iloc[-1] / _base_price(df)) - 1) * 100), 2) if len(df) > 0 else 0
                             }
                         }
                     else:
@@ -420,7 +429,7 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
                             "max_single_day_loss": float(df['pct_chg'].min())
                         },
                         "trend_statistics": {
-                            "total_change": round(float(((df['close'].iloc[-1] / df['close'].iloc[0]) - 1) * 100), 2) if len(df) > 0 else 0
+                            "total_change": round(float(((df['close'].iloc[-1] / _base_price(df)) - 1) * 100), 2) if len(df) > 0 else 0
                         }
                     }
 
