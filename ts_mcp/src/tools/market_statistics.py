@@ -23,6 +23,7 @@ from ..utils.tushare_api import TushareAPI, fetch_daily_data
 from ..utils.data_processing import adjust_date_to_trading_day, get_latest_trading_day
 from ..utils.response import build_success_response, build_error_response, build_meta
 from ..utils.errors import ErrorCode
+from ..utils.ui_hint import append_hint_to_summary
 
 logger = logging.getLogger(__name__)
 
@@ -294,6 +295,12 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
                 "timestamp": datetime.now().isoformat()
             }
 
+            summary = append_hint_to_summary(
+                summary,
+                "ui://findata/market-dashboard",
+                items_path="data",
+                extra_stats=f"均值{pct_chg_stats['mean']}%, 中位数{pct_chg_stats['median']}%",
+            )
             return ToolResult(
                 content=[TextContent(type="text", text=summary)],
                 structured_content=structured,
@@ -730,6 +737,12 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
                 "timestamp": datetime.now().isoformat()
             }
 
+            summary = append_hint_to_summary(
+                summary,
+                "ui://findata/data-table",
+                items_path="data.results",
+                items_count=len(pct_changes),
+            )
             return ToolResult(
                 content=[TextContent(type="text", text=summary)],
                 structured_content=structured,

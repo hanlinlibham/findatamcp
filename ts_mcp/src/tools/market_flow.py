@@ -12,6 +12,7 @@ from fastmcp.server.apps import AppConfig
 
 from ..cache import cache
 from ..utils.tushare_api import TushareAPI
+from ..utils.ui_hint import attach_hint_to_dict, build_ui_hint as build_ui_hint_local
 
 DATA_TABLE_APP = AppConfig(
     resource_uri="ui://findata/data-table",
@@ -222,6 +223,11 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
                 "codes": codes_only,
                 "limit": limit,
                 "timestamp": datetime.now().isoformat(),
+                "_llm_hint": build_ui_hint_local(
+                    "ui://findata/data-table",
+                    items_path="data",
+                    items_count=len(result_list),
+                ),
                 # P1-4: 添加 next_action 提示
                 "next_actions": {
                     "analyze_performance": {
@@ -293,14 +299,19 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
 
             data = df.to_dict('records')
 
-            return {
-                "success": True,
-                "trade_date": trade_date,
-                "market_type": market_type,
-                "count": len(data),
-                "data": data,
-                "timestamp": datetime.now().isoformat()
-            }
+            return attach_hint_to_dict(
+                {
+                    "success": True,
+                    "trade_date": trade_date,
+                    "market_type": market_type,
+                    "count": len(data),
+                    "data": data,
+                    "timestamp": datetime.now().isoformat(),
+                },
+                "ui://findata/data-table",
+                items_path="data",
+                items_count=len(data),
+            )
         except Exception as e:
             return {
                 "success": False,

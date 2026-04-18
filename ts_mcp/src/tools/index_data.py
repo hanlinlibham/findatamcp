@@ -15,6 +15,7 @@ import logging
 from ..cache import cache
 from ..utils.tushare_api import TushareAPI
 from ..utils.large_data_handler import handle_large_data, merge_large_data_payload, prepare_large_data_view
+from ..utils.ui_hint import attach_hint_to_dict
 from .constants import READONLY_ANNOTATIONS
 
 logger = logging.getLogger(__name__)
@@ -235,7 +236,15 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
                 "ui": _build_index_valuation_ui(ts_code, ui_rows),
                 "timestamp": datetime.now().isoformat()
             }
-            return merge_large_data_payload(result, large_payload)
+            result = merge_large_data_payload(result, large_payload)
+            return attach_hint_to_dict(
+                result,
+                "ui://findata/series-chart",
+                items_path="data",
+                items_count=len(data),
+                truncated=bool("is_truncated" in large_payload),
+                data_resource_uri=large_payload.get("resource_uri") if "is_truncated" in large_payload else None,
+            )
 
         except Exception as e:
             return {

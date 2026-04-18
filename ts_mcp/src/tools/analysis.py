@@ -18,6 +18,7 @@ from ..cache import cache
 from ..cache.calc_cache import calc_metrics_cache
 from ..utils.tushare_api import TushareAPI, fetch_daily_data
 from ..utils.large_data_handler import sample_rows
+from ..utils.ui_hint import attach_hint_to_dict
 # P0-2: 使用共享的日期容错工具
 from ..utils.data_processing import adjust_end_date_to_latest_trading_day as _adjust_end_date_to_latest_trading_day
 
@@ -465,7 +466,11 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
             if result["metrics"]:
                 result["success"] = True
                 result["ui"] = _build_financial_metrics_ui(ts_code, period, calc_type, result["metrics"])
-                return result
+                return attach_hint_to_dict(
+                    result,
+                    "ui://findata/financial-metrics-chart",
+                    items_path="metrics",
+                )
             else:
                 return {
                     "success": False,
@@ -780,7 +785,12 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                     stock_names=stock_names,
                 )
 
-            return result
+            return attach_hint_to_dict(
+                result,
+                "ui://findata/correlation-matrix",
+                items_path="correlation_matrix",
+                items_count=len(stock_names),
+            )
 
         except Exception as e:
             return {
@@ -1310,8 +1320,13 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
             if date_adjust_msg:
                 result["date_adjusted"] = True
                 result["date_adjust_message"] = date_adjust_msg
-            
-            return result
+
+            return attach_hint_to_dict(
+                result,
+                "ui://findata/correlation-matrix",
+                items_path="correlation_matrix",
+                items_count=len(ts_codes_list),
+            )
 
         except Exception as e:
             return {"success": False, "error": f"计算指标异常: {str(e)}"}

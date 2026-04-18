@@ -27,6 +27,7 @@ from ..utils.tushare_api import TushareAPI
 from ..utils.response import build_success_response, build_error_response, build_meta
 from ..utils.errors import ErrorCode
 from ..utils.large_data_handler import merge_large_data_payload, prepare_large_data_view
+from ..utils.ui_hint import append_hint_to_summary, attach_hint_to_dict, build_ui_hint
 
 logger = logging.getLogger(__name__)
 
@@ -371,6 +372,11 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
                 "timestamp": datetime.now().isoformat()
             }
 
+            summary = append_hint_to_summary(
+                summary,
+                "ui://findata/macro-panel",
+                items_path="data",
+            )
             return ToolResult(
                 content=[TextContent(type="text", text=summary)],
                 structured_content=structured,
@@ -500,7 +506,14 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
                 },
                 "timestamp": datetime.now().isoformat()
             }
-            return merge_large_data_payload(result, large_payload)
+            result = merge_large_data_payload(result, large_payload)
+            return attach_hint_to_dict(
+                result,
+                "ui://findata/series-chart",
+                items_path="data",
+                truncated=bool("is_truncated" in large_payload),
+                data_resource_uri=large_payload.get("resource_uri") if "is_truncated" in large_payload else None,
+            )
 
         except Exception as e:
             logger.error(f"❌ get_gdp_data error: {e}")
@@ -632,7 +645,14 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
                 },
                 "timestamp": datetime.now().isoformat()
             }
-            return merge_large_data_payload(result, large_payload)
+            result = merge_large_data_payload(result, large_payload)
+            return attach_hint_to_dict(
+                result,
+                "ui://findata/series-chart",
+                items_path="data",
+                truncated=bool("is_truncated" in large_payload),
+                data_resource_uri=large_payload.get("resource_uri") if "is_truncated" in large_payload else None,
+            )
 
         except Exception as e:
             logger.error(f"❌ get_cpi_data error: {e}")
@@ -764,7 +784,14 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
                 },
                 "timestamp": datetime.now().isoformat()
             }
-            return merge_large_data_payload(result, large_payload)
+            result = merge_large_data_payload(result, large_payload)
+            return attach_hint_to_dict(
+                result,
+                "ui://findata/series-chart",
+                items_path="data",
+                truncated=bool("is_truncated" in large_payload),
+                data_resource_uri=large_payload.get("resource_uri") if "is_truncated" in large_payload else None,
+            )
 
         except Exception as e:
             logger.error(f"❌ get_pmi_data error: {e}")
@@ -921,7 +948,14 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
                 },
                 "timestamp": datetime.now().isoformat()
             }
-            return merge_large_data_payload(result, large_payload)
+            result = merge_large_data_payload(result, large_payload)
+            return attach_hint_to_dict(
+                result,
+                "ui://findata/series-chart",
+                items_path="data",
+                truncated=bool("is_truncated" in large_payload),
+                data_resource_uri=large_payload.get("resource_uri") if "is_truncated" in large_payload else None,
+            )
 
         except Exception as e:
             logger.error(f"❌ get_money_supply error: {e}")
@@ -1065,7 +1099,10 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
                         "shibor_1w": "1周拆借利率"
                     }
                 },
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
+                "_llm_hint": build_ui_hint(
+                    "ui://findata/series-chart", items_path="data"
+                ),
             }
 
         except Exception as e:
@@ -1189,7 +1226,14 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
                 },
                 "timestamp": datetime.now().isoformat()
             }
-            return merge_large_data_payload(result, large_payload)
+            result = merge_large_data_payload(result, large_payload)
+            return attach_hint_to_dict(
+                result,
+                "ui://findata/series-chart",
+                items_path="data",
+                truncated=bool("is_truncated" in large_payload),
+                data_resource_uri=large_payload.get("resource_uri") if "is_truncated" in large_payload else None,
+            )
 
         except Exception as e:
             logger.error(f"❌ get_ppi_data error: {e}")

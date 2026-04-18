@@ -18,6 +18,7 @@ from mcp.types import TextContent
 from ..cache import cache
 from ..utils.tushare_api import TushareAPI, fetch_daily_data
 from ..utils.large_data_handler import THRESHOLD, handle_large_data, merge_large_data_payload, prepare_large_data_view
+from ..utils.ui_hint import append_hint_to_summary
 from .constants import READONLY_ANNOTATIONS
 
 KLINE_CHART_APP = AppConfig(
@@ -490,8 +491,24 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
                 _chg = _trend.get("total_change", 0)
                 _chg_s = f"+{_chg}%" if _chg >= 0 else f"{_chg}%"
                 _summary = f"{ts_code}: 最新{_stats.get('latest_price','-')}, 区间{_chg_s}, 最高{_stats.get('max_price','-')}, 最低{_stats.get('min_price','-')}, {daily_data.get('data_count',0)}个交易日"
-                if large_items and "is_truncated" in large_items:
-                    _summary += f"；完整序列资源 {large_items['resource_uri']}"
+                _items_count = len(daily_data.get("items", []) or [])
+                _items_truncated = bool(daily_data.get("items_truncated", False))
+                _vol = _stats.get("price_volatility")
+                _max_up = _stats.get("max_single_day_gain")
+                _max_dn = _stats.get("max_single_day_loss")
+                _extra = None
+                if _vol is not None and _max_up is not None and _max_dn is not None:
+                    _extra = f"波动率{_vol}%, 最大单日涨+{_max_up}%/跌{_max_dn}%"
+                _data_uri = large_items.get("resource_uri") if (large_items and "is_truncated" in large_items) else None
+                _summary = append_hint_to_summary(
+                    _summary,
+                    "ui://findata/kline-chart",
+                    items_path="daily_data.items",
+                    items_count=_items_count,
+                    truncated=_items_truncated,
+                    extra_stats=_extra,
+                    data_resource_uri=_data_uri,
+                )
                 return ToolResult(
                     content=[TextContent(type="text", text=_summary)],
                     structured_content=structured,
@@ -583,8 +600,15 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
             _net_total = sum((r.get("net_mf_amount") or 0) for r in data) / 100000  # 亿
             _net_sign = "+" if _net_total >= 0 else ""
             _summary = f"{ts_code} 资金流向: {start_date}~{end_date}, {len(data)}个交易日, 净流入{_net_sign}{_net_total:.2f}亿"
-            if "is_truncated" in large_payload:
-                _summary += f"；完整数据资源 {large_payload['resource_uri']}"
+            _data_uri = large_payload.get("resource_uri") if "is_truncated" in large_payload else None
+            _summary = append_hint_to_summary(
+                _summary,
+                "ui://findata/moneyflow-chart",
+                items_path="data",
+                items_count=len(ui_rows),
+                truncated=bool("is_truncated" in large_payload),
+                data_resource_uri=_data_uri,
+            )
             return ToolResult(
                 content=[TextContent(type="text", text=_summary)],
                 structured_content=structured,
