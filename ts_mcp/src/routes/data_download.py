@@ -1,8 +1,8 @@
 """数据文件下载端点
 
-GET /data/{data_id}.csv  -> 下载 CSV 文件
-GET /data/{data_id}.json -> 下载 JSON 文件
-GET /data/{data_id}/info -> 查看文件元信息 (调试用)
+GET /data/{data_id}.jsonl -> 下载 JSONL 文件（供 AG Grid 渲染）
+GET /data/{data_id}.json  -> 下载 JSON 文件（MCP 资源回读 / 兜底）
+GET /data/{data_id}/info  -> 查看文件元信息 (调试用)
 """
 
 import logging
@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 def register_data_routes(mcp):
     """注册数据下载路由"""
 
-    @mcp.custom_route("/data/{data_id}.csv", methods=["GET"])
-    async def download_csv(request: Request):
+    @mcp.custom_route("/data/{data_id}.jsonl", methods=["GET"])
+    async def download_jsonl(request: Request):
         data_id = request.path_params["data_id"]
         meta = data_file_store.get(data_id)
         if meta is None:
@@ -27,9 +27,9 @@ def register_data_routes(mcp):
                 status_code=404,
             )
         return FileResponse(
-            meta.csv_path,
-            media_type="text/csv; charset=utf-8-sig",
-            filename=f"{meta.tool_name}_{data_id}.csv",
+            meta.jsonl_path,
+            media_type="application/x-ndjson; charset=utf-8",
+            filename=f"{meta.tool_name}_{data_id}.jsonl",
         )
 
     @mcp.custom_route("/data/{data_id}.json", methods=["GET"])
@@ -68,4 +68,4 @@ def register_data_routes(mcp):
             "expires_at": meta.expires_at,
         })
 
-    logger.info("Registered data download routes: /data/{id}.csv, /data/{id}.json, /data/{id}/info")
+    logger.info("Registered data download routes: /data/{id}.jsonl, /data/{id}.json, /data/{id}/info")
