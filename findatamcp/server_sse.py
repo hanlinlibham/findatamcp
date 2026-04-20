@@ -11,10 +11,10 @@ SSE 适用于需要通过 HTTP 进行单向服务器推送的场景。
 - ✅ 与模块化版本共享相同的工具集
 
 运行方式：
-    python src/server_sse.py
+    python findatamcp/server_sse.py
 
     # 或指定端口
-    MCP_PORT=8006 python src/server_sse.py
+    MCP_PORT=8006 python findatamcp/server_sse.py
 
 环境变量：
     TUSHARE_TOKEN - 金融数据 Pro API Token（必需）
@@ -42,29 +42,29 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fastmcp import FastMCP
 
-from src.config import config
-from src.cache import cache
-from src.database import EntityDatabase
-from src.utils.tushare_api import TushareAPI
+from findatamcp.config import config
+from findatamcp.cache import cache
+from findatamcp.database import EntityDatabase
+from findatamcp.utils.tushare_api import TushareAPI
 
 # 导入工具注册函数
-from src.tools.market_data import register_market_tools
-from src.tools.financial_data import register_financial_tools
-from src.tools.performance_data import register_performance_tools
-from src.tools.market_flow import register_market_flow_tools
-from src.tools.search import register_search_tools
-from src.tools.analysis import register_analysis_tools
-from src.tools.sector import register_sector_tools
-from src.tools.market_statistics import register_market_statistics_tools
-from src.tools.meta import register_meta_tools
-from src.tools.macro_data import register_macro_tools
+from findatamcp.tools.market_data import register_market_tools
+from findatamcp.tools.financial_data import register_financial_tools
+from findatamcp.tools.performance_data import register_performance_tools
+from findatamcp.tools.market_flow import register_market_flow_tools
+from findatamcp.tools.search import register_search_tools
+from findatamcp.tools.analysis import register_analysis_tools
+from findatamcp.tools.sector import register_sector_tools
+from findatamcp.tools.market_statistics import register_market_statistics_tools
+from findatamcp.tools.meta import register_meta_tools
+from findatamcp.tools.macro_data import register_macro_tools
 
 # 导入 Resources 和 Prompts 注册函数
-from src.resources.entity_stats import register_entity_resources
-from src.resources.large_data import register_large_data_resources
-from src.resources.stock_data import register_stock_data_resources
-from src.resources.ui_apps import register_ui_app_resources
-from src.prompts.stock_analysis import register_stock_prompts
+from findatamcp.resources.entity_stats import register_entity_resources
+from findatamcp.resources.large_data import register_large_data_resources
+from findatamcp.resources.stock_data import register_stock_data_resources
+from findatamcp.resources.ui_apps import register_ui_app_resources
+from findatamcp.prompts.stock_analysis import register_stock_prompts
 
 # 配置日志
 logging.basicConfig(

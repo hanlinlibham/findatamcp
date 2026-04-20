@@ -12,7 +12,7 @@ from pathlib import Path
 # 添加父目录到 Python 路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.utils.data_processing import normalize_stock_code, format_date, parse_tushare_date
+from findatamcp.utils.data_processing import normalize_stock_code, format_date, parse_tushare_date
 
 
 class TestNormalizeStockCode:

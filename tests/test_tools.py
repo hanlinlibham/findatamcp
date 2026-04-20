@@ -253,11 +253,11 @@ async def main():
             response = await client.get(f"{MCP_SERVER_URL}/health")
             if response.status_code != 200:
                 print(f"❌ 无法连接到 Tushare MCP 服务器: {MCP_SERVER_URL}")
-                print(f"   请先启动服务: cd /home/abmind_v01/mcp && bash start.sh")
+                print(f"   请先启动服务: bash start.sh")
                 return
     except Exception as e:
         print(f"❌ 无法连接到 Tushare MCP 服务器: {e}")
-        print(f"   请先启动服务: cd /home/abmind_v01/mcp && bash start.sh")
+        print(f"   请先启动服务: bash start.sh")
         return
     
     tests = [

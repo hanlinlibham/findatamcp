@@ -1,6 +1,6 @@
-# 🚀 Tushare MCP Server
+# 🚀 findatamcp
 
-企业级金融数据 MCP 服务器 - 模块化架构
+企业级金融数据 MCP 服务器 - 模块化架构（原名 Tushare MCP Server）
 
 ## ✨ 特性
 
@@ -18,19 +18,14 @@
 conda activate able_bff
 
 # 进入项目目录
-cd /home/abmind_v01/mcp
+cd /path/to/findatamcp
 ```
 
 ### 2. 运行服务器
 
-**方式A：原服务器（生产稳定，21个工具完整）**
+**方式A：模块化服务器（Streamable HTTP）**
 ```bash
-python tushare_server.py --port 8006
-```
-
-**方式B：模块化服务器（Streamable HTTP）**
-```bash
-python src/server.py
+python findatamcp/server.py
 ```
 
 **方式C：SSE 版本（Server-Sent Events）**
@@ -39,27 +34,25 @@ python src/server.py
 ./start_sse.sh
 
 # 或直接运行
-python src/server_sse.py
+python findatamcp/server_sse.py
 
 # 自定义端口
-MCP_PORT=8006 python src/server_sse.py
+MCP_PORT=8006 python findatamcp/server_sse.py
 ```
 
 SSE 端点：
 - 事件流：`http://localhost:8006/sse`
 - 消息接收：`http://localhost:8006/messages`
 
-**方式D：PM2（推荐生产环境）**
+**方式C：PM2（推荐生产环境）**
 ```bash
-cd scripts
-pm2 start ecosystem.config.js
+pm2 start pm2.config.js
 ```
 
 ## 🧪 测试
 
 ```bash
-# 测试模块化架构
-python test_modular_server.py
+pytest tests/
 ```
 
 ## 📊 项目状态
@@ -82,27 +75,30 @@ python test_modular_server.py
 ## 📁 目录结构
 
 ```
-mcp/
-├── src/              # 源代码（模块化）
-│   ├── config.py     # 配置管理
-│   ├── cache.py      # 缓存机制
-│   ├── database.py   # 数据库查询
-│   ├── server.py     # 新主入口
-│   ├── utils/        # 工具函数
-│   └── tools/        # MCP 工具
+findatamcp/
+├── findatamcp/          # 源代码（Python 包）
+│   ├── config.py        # 配置管理
+│   ├── cache/           # 缓存机制
+│   ├── database.py      # 数据库查询
+│   ├── server.py        # 主入口（Streamable HTTP）
+│   ├── server_sse.py    # SSE 入口
+│   ├── utils/           # 工具函数
+│   ├── tools/           # MCP 工具
+│   ├── resources/       # MCP 资源
+│   ├── prompts/         # MCP 提示词
+│   └── routes/          # HTTP 路由
 │
 ├── docs/             # 文档
 ├── scripts/          # 脚本
-├── archive/          # 归档
+├── legacy/           # 历史遗留脚本（单体 server、old collector 等）
+├── static/           # 静态资源（图表库）
 └── tests/            # 测试
 ```
 
 ## 📚 文档
 
-- **[完整重构方案](REFACTORING_PLAN.md)** - 详细的重构计划
-- **[完成总结](REFACTORING_COMPLETE_SUMMARY.md)** - 重构成果报告
-- **[目录结构](DIRECTORY_STRUCTURE.txt)** - 可视化目录结构
 - **[项目文档](docs/README.md)** - 详细的项目文档
+- **[SSE 指南](docs/SSE_GUIDE.md)** - SSE 部署说明
 
 ## 🔧 配置
 
@@ -148,7 +144,7 @@ CACHE_ENABLED=true
 
 ### 2. 代码精简
 - 原 `tushare_collector_full.py`：1514行
-- 新 `src/utils/tushare_api.py`：80行
+- 新 `findatamcp/utils/tushare_api.py`：80行
 - **减少 95%** ⭐⭐⭐
 
 ### 3. 架构优化

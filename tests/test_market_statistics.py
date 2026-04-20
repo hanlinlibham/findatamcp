@@ -11,9 +11,9 @@ from pathlib import Path
 # 添加 src 目录到 Python 路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.config import config
-from src.cache import cache
-from src.utils.tushare_api import TushareAPI
+from findatamcp.config import config
+from findatamcp.cache import cache
+from findatamcp.utils.tushare_api import TushareAPI
 
 
 async def test_market_summary():
@@ -22,7 +22,7 @@ async def test_market_summary():
     print("测试用例 1: get_market_summary - 全市场统计")
     print("=" * 60)
 
-    from src.tools.market_statistics import register_market_statistics_tools
+    from findatamcp.tools.market_statistics import register_market_statistics_tools
     from fastmcp import FastMCP
 
     mcp = FastMCP("test")
@@ -72,7 +72,7 @@ async def test_market_extremes():
     print("测试用例 2: get_market_extremes - 涨跌幅极值")
     print("=" * 60)
 
-    from src.tools.market_statistics import register_market_statistics_tools
+    from findatamcp.tools.market_statistics import register_market_statistics_tools
     from fastmcp import FastMCP
 
     mcp = FastMCP("test")
@@ -111,7 +111,7 @@ async def test_batch_pct_chg():
     print("测试用例 3: get_batch_pct_chg - 批量涨跌幅")
     print("=" * 60)
 
-    from src.tools.market_statistics import register_market_statistics_tools
+    from findatamcp.tools.market_statistics import register_market_statistics_tools
     from fastmcp import FastMCP
 
     mcp = FastMCP("test")
@@ -161,7 +161,7 @@ async def test_historical_data_slim():
     print("测试用例 4: get_historical_data - 返回体瘦身")
     print("=" * 60)
 
-    from src.tools.market_data import register_market_tools
+    from findatamcp.tools.market_data import register_market_tools
     from fastmcp import FastMCP
 
     mcp = FastMCP("test")
@@ -209,7 +209,7 @@ async def test_latest_daily_close():
     print("测试用例 5: get_latest_daily_close - 语义纠偏")
     print("=" * 60)
 
-    from src.tools.market_data import register_market_tools
+    from findatamcp.tools.market_data import register_market_tools
     from fastmcp import FastMCP
 
     mcp = FastMCP("test")
@@ -258,7 +258,7 @@ async def test_tool_manifest():
     print("测试用例 6: get_tool_manifest - 工具能力清单")
     print("=" * 60)
 
-    from src.tools.meta import register_meta_tools
+    from findatamcp.tools.meta import register_meta_tools
     from fastmcp import FastMCP
 
     mcp = FastMCP("test")
@@ -293,7 +293,7 @@ async def test_date_tolerance():
     print("测试用例 7: 日期容错功能")
     print("=" * 60)
 
-    from src.utils.data_processing import (
+    from findatamcp.utils.data_processing import (
         get_latest_trading_day,
         adjust_date_to_trading_day
     )
@@ -320,7 +320,7 @@ async def test_sector_next_actions():
     print("测试用例 8: get_sector_top_stocks - next_actions 提示")
     print("=" * 60)
 
-    from src.tools.market_flow import register_market_flow_tools
+    from findatamcp.tools.market_flow import register_market_flow_tools
     from fastmcp import FastMCP
 
     mcp = FastMCP("test")

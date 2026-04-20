@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from fastmcp import FastMCP
 import uvicorn
 
-from src.config import config
+from findatamcp.config import config
 
 # ── Session 过期友好提示中间件 ──
 import json as _json
@@ -112,37 +112,37 @@ class SessionExpiredMiddleware:
         await self.app(scope, receive, intercept_send)
 
 
-from src.cache import cache
-from src.entity_store import EntityStore
-from src.utils.tushare_api import TushareAPI
+from findatamcp.cache import cache
+from findatamcp.entity_store import EntityStore
+from findatamcp.utils.tushare_api import TushareAPI
 
 # 导入工具注册函数
-from src.tools.market_data import register_market_tools
-from src.tools.financial_data import register_financial_tools
-from src.tools.performance_data import register_performance_tools
-from src.tools.market_flow import register_market_flow_tools
-from src.tools.search import register_search_tools
-from src.tools.analysis import register_analysis_tools
-from src.tools.sector import register_sector_tools
+from findatamcp.tools.market_data import register_market_tools
+from findatamcp.tools.financial_data import register_financial_tools
+from findatamcp.tools.performance_data import register_performance_tools
+from findatamcp.tools.market_flow import register_market_flow_tools
+from findatamcp.tools.search import register_search_tools
+from findatamcp.tools.analysis import register_analysis_tools
+from findatamcp.tools.sector import register_sector_tools
 # P0-1: 市场统计工具
-from src.tools.market_statistics import register_market_statistics_tools
+from findatamcp.tools.market_statistics import register_market_statistics_tools
 # P1-5: 工具元数据
-from src.tools.meta import register_meta_tools
+from findatamcp.tools.meta import register_meta_tools
 # 宏观经济数据工具
-from src.tools.macro_data import register_macro_tools
+from findatamcp.tools.macro_data import register_macro_tools
 # 指数数据工具
-from src.tools.index_data import register_index_tools
+from findatamcp.tools.index_data import register_index_tools
 # 基金数据工具
-from src.tools.fund_data import register_fund_tools
+from findatamcp.tools.fund_data import register_fund_tools
 
 # 导入 Resources 和 Prompts 注册函数
-from src.resources.entity_stats import register_entity_resources
-from src.resources.large_data import register_large_data_resources
-from src.resources.stock_data import register_stock_data_resources
-from src.resources.ui_apps import register_ui_app_resources
-from src.prompts.stock_analysis import register_stock_prompts
-from src.routes.data_download import register_data_routes
-from src.cache.data_file_store import data_file_store
+from findatamcp.resources.entity_stats import register_entity_resources
+from findatamcp.resources.large_data import register_large_data_resources
+from findatamcp.resources.stock_data import register_stock_data_resources
+from findatamcp.resources.ui_apps import register_ui_app_resources
+from findatamcp.prompts.stock_analysis import register_stock_prompts
+from findatamcp.routes.data_download import register_data_routes
+from findatamcp.cache.data_file_store import data_file_store
 
 # 配置日志
 logging.basicConfig(

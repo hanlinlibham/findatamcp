@@ -1,34 +1,32 @@
 #!/bin/bash
-# Tushare MCP Server - SSE 版本启动脚本
+# findatamcp — SSE 版本启动脚本
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# 默认端口
 PORT=${MCP_PORT:-8110}
-HOST=${MCP_HOST:-0.0.0.0}
+HOST=${MCP_HOST:-127.0.0.1}
+PYTHON_BIN="${FINDATA_PYTHON:-python3}"
 
 echo "======================================"
-echo "🚀 Tushare MCP Server (SSE Version)"
+echo "🚀 findatamcp (SSE)"
 echo "======================================"
 echo "   Host: $HOST"
 echo "   Port: $PORT"
-echo "   Transport: SSE"
+echo "   Python: $PYTHON_BIN"
 echo ""
 echo "📡 Endpoints:"
-echo "   SSE: http://$HOST:$PORT/sse"
+echo "   SSE:      http://$HOST:$PORT/sse"
 echo "   Messages: http://$HOST:$PORT/messages"
 echo "======================================"
 echo ""
 
-# 检查 .env 文件
 if [ -f ".env" ]; then
     echo "✅ Found .env file"
 else
-    echo "⚠️  No .env file found. Make sure TUSHARE_TOKEN is set."
+    echo "⚠️  未找到 .env — 请确认 TUSHARE_TOKEN 已设置"
 fi
 
-# 启动服务器
-/host/opt/miniforge/envs/able_bff/bin/python3.12 src/server_sse.py
+exec "$PYTHON_BIN" findatamcp/server_sse.py

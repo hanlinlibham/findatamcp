@@ -37,7 +37,7 @@ MCP_PORT=8006
 
 ```bash
 # 方式1：直接启动
-python src/server.py
+python findatamcp/server.py
 
 # 方式2：使用 PM2（推荐生产环境）
 ./start.sh
@@ -209,7 +209,7 @@ for item in batch['data']['results']:
 
 ```
 mcp/
-├── src/                          # 源代码
+├── findatamcp/                          # 源代码
 │   ├── server.py                 # MCP 服务器入口
 │   ├── config.py                 # 配置管理
 │   │

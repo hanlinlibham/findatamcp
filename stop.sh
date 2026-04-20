@@ -1,11 +1,10 @@
 #!/bin/bash
-# Tushare MCP 服务器停止脚本
+# findatamcp 停止脚本
 
 cd "$(dirname "$0")"
 
-echo "⏹️  停止 Tushare MCP 服务器..."
-pm2 stop tushare-mcp
-pm2 delete tushare-mcp
+echo "⏹️  停止 findatamcp..."
+pm2 stop findata-mcp
+pm2 delete findata-mcp
 
-echo "✅ 服务已停止！"
-
+echo "✅ 服务已停止"

@@ -26,10 +26,10 @@ SSE (Server-Sent Events) 版本使用标准的 HTTP SSE 协议进行通信，适
 ./start_sse.sh
 
 # 方式 2：直接运行
-python src/server_sse.py
+python findatamcp/server_sse.py
 
 # 方式 3：指定端口
-MCP_PORT=8006 python src/server_sse.py
+MCP_PORT=8006 python findatamcp/server_sse.py
 ```
 
 ### 2. 验证服务器
@@ -169,7 +169,7 @@ print(result)
 
 服务器启动时会输出详细日志：
 ```bash
-python src/server_sse.py 2>&1 | tee server.log
+python findatamcp/server_sse.py 2>&1 | tee server.log
 ```
 
 ## 工具列表
