@@ -6,7 +6,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-PORT=${MCP_PORT:-8110}
+PORT=${MCP_PORT:-8006}
 HOST=${MCP_HOST:-127.0.0.1}
 PYTHON_BIN="${FINDATA_PYTHON:-python3}"
 

@@ -4,6 +4,20 @@
 
 原名 `tushare_mcp`，重构后更名为 `findatamcp`，采用模块化包结构。
 
+## 预览
+
+工具调用结果会自动渲染为可交互的前端组件，由客户端通过 MCP resource 回读 JSONL + 列 schema 后在浏览器侧绘制。
+
+<p align="center">
+  <img src="docs/pic/overview.png" alt="A 股市场概况卡片" width="720"><br>
+  <sub><code>get_market_overview</code> —— 全市场统计一页纸（涨跌家数、均值、PE/PB 中位数、环形占比）</sub>
+</p>
+
+<p align="center">
+  <img src="docs/pic/k-line-ui.png" alt="沪深 300 日 K 线" width="720"><br>
+  <sub><code>get_historical_data(ts_code="000300.SH", ...) + include_ui=true</code> —— 日 K + 双均线 + 成交量，支持缩放与拖动</sub>
+</p>
+
 ## 快速开始
 
 ### 安装
@@ -62,9 +76,8 @@ findatamcp/
 │   ├── routes/             # HTTP 路由（数据下载等）
 │   └── utils/              # artifact / errors / response / ui_hint 等
 ├── tests/                  # pytest 测试
-├── docs/                   # 文档
+├── docs/                   # 文档（含截图）
 ├── static/                 # 前端资源（AG Charts / ECharts）
-├── legacy/                 # 历史脚本归档（不在生产路径上）
 ├── pm2.config.js           # PM2 部署配置
 ├── start.sh / stop.sh
 └── requirements.txt
@@ -122,7 +135,4 @@ PYTHONUNBUFFERED=1
 
 ## 文档
 
-- [docs/README.md](docs/README.md) — 详细架构文档
 - [docs/SSE_GUIDE.md](docs/SSE_GUIDE.md) — SSE 部署与客户端接入
-- [docs/TUSHARE_TOOL_REFACTOR_CHECKLIST.md](docs/TUSHARE_TOOL_REFACTOR_CHECKLIST.md) — 工具重构清单
-- [docs/upgrade.md](docs/upgrade.md) — 升级记录

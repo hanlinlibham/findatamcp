@@ -20,9 +20,9 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-DATA_DIR = Path("/tmp/tushare_mcp_data")
+DATA_DIR = Path(os.getenv("FINDATA_DATA_DIR", "/tmp/findatamcp_data"))
 FILE_TTL_HOURS = 24
-SERVER_BASE_URL = os.getenv("SERVER_BASE_URL", "http://39.96.218.64:8111")
+SERVER_BASE_URL = os.getenv("SERVER_BASE_URL", "http://127.0.0.1:8006")
 
 # 列名启发式：日期/时间语义
 _DATE_COL_RE = re.compile(r"date|time|^dt_|_dt$", re.I)
