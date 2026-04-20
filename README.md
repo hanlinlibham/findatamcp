@@ -1,183 +1,128 @@
-# 🚀 findatamcp
+# findatamcp
 
-企业级金融数据 MCP 服务器 - 模块化架构（原名 Tushare MCP Server）
+基于 MCP（Model Context Protocol）的金融数据服务器，面向 LLM Agent 提供 A 股行情、财务、指数、基金、宏观等结构化数据访问能力。底层数据源为 Tushare Pro。
 
-## ✨ 特性
+原名 `tushare_mcp`，重构后更名为 `findatamcp`，采用模块化包结构。
 
-- **21个专业工具**：覆盖行情、财务、分析全流程
-- **生产级性能**：异步非阻塞、智能缓存、数据对齐
-- **语义泛化**：支持"白酒行业"→龙头股代码列表的智能转换
-- **模块化设计**：清晰的代码结构，易于维护和扩展
+## 快速开始
 
-## 📦 快速开始
-
-### 1. 环境准备
+### 安装
 
 ```bash
-# 激活 conda 环境
-conda activate able_bff
+# Python 3.10+，推荐 conda
+conda create -n findatamcp python=3.12
+conda activate findatamcp
 
-# 进入项目目录
-cd /path/to/findatamcp
+pip install -r requirements.txt
+cp .env.example .env
+# 编辑 .env，填入 TUSHARE_TOKEN
 ```
 
-### 2. 运行服务器
+### 运行
 
-**方式A：模块化服务器（Streamable HTTP）**
 ```bash
-python findatamcp/server.py
+# 方式 A：Streamable HTTP（默认，推荐）
+python -m findatamcp.server
+
+# 方式 B：SSE
+python -m findatamcp.server_sse
+# 端点：
+#   GET  http://127.0.0.1:8006/sse
+#   POST http://127.0.0.1:8006/messages
+
+# 方式 C：PM2（生产部署）
+./start.sh          # 等价于 pm2 start pm2.config.js
+./stop.sh
 ```
 
-**方式C：SSE 版本（Server-Sent Events）**
-```bash
-# 使用启动脚本
-./start_sse.sh
+PM2 配置通过环境变量覆盖：
 
-# 或直接运行
-python findatamcp/server_sse.py
+| 变量 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `FINDATA_PYTHON` | `~/miniforge3/envs/mcp_server/bin/python` | Python 解释器路径 |
+| `FINDATA_MCP_DIR` | `pm2.config.js` 所在目录 | 仓库根路径 |
+| `FINDATA_LOG_DIR` | `~/.mcp-logs` | 日志目录 |
+| `MCP_SERVER_HOST` | `127.0.0.1` | 绑定地址 |
+| `MCP_SERVER_PORT` | `8006` | 端口 |
 
-# 自定义端口
-MCP_PORT=8006 python findatamcp/server_sse.py
+## 目录结构
+
+```
+findatamcp/
+├── findatamcp/             # 主包
+│   ├── server.py           # Streamable HTTP 入口
+│   ├── server_sse.py       # SSE 入口
+│   ├── config.py           # 配置
+│   ├── database.py         # SQLite 查询
+│   ├── entity_store.py     # 实体索引（拼音 / 别名）
+│   ├── cache/              # 数据缓存（tushare / 计算 / 文件产物）
+│   ├── tools/              # MCP tools（12 模块）
+│   ├── resources/          # MCP resources（大数据 / UI apps / stats）
+│   ├── prompts/            # MCP prompts
+│   ├── routes/             # HTTP 路由（数据下载等）
+│   └── utils/              # artifact / errors / response / ui_hint 等
+├── tests/                  # pytest 测试
+├── docs/                   # 文档
+├── static/                 # 前端资源（AG Charts / ECharts）
+├── legacy/                 # 历史脚本归档（不在生产路径上）
+├── pm2.config.js           # PM2 部署配置
+├── start.sh / stop.sh
+└── requirements.txt
 ```
 
-SSE 端点：
-- 事件流：`http://localhost:8006/sse`
-- 消息接收：`http://localhost:8006/messages`
+## 工具一览
 
-**方式C：PM2（推荐生产环境）**
-```bash
-pm2 start pm2.config.js
-```
+当前注册 42 个 MCP tool，按领域分为 12 个模块：
 
-## 🧪 测试
+| 模块 | 内容 |
+| :--- | :--- |
+| `market_data` | 实时行情、历史 K 线、日线 |
+| `market_flow` | 资金流、成交明细 |
+| `market_statistics` | 涨跌家数、板块统计 |
+| `financial_data` | 财务三表、指标、分红 |
+| `performance_data` | 业绩预告 / 快报 |
+| `index_data` | 指数行情与成分股 |
+| `fund_data` | 公募基金净值、持仓 |
+| `sector` | 行业 / 概念板块 |
+| `macro_data` | 宏观经济指标 |
+| `analysis` | 技术指标、相关性、对齐处理 |
+| `search` | 代码 / 名称 / 拼音 / 别名搜索 |
+| `meta` | 元数据与能力发现 |
+
+同时提供 resources（`entity_stats`、`large_data`、`stock_data`、`ui_apps`）和 prompts（`stock_analysis`）。
+
+## 测试
 
 ```bash
 pytest tests/
 ```
 
-## 📊 项目状态
+测试覆盖缓存、数据处理、市场统计、工具注册、SSE 客户端、端到端流程。
 
-### 重构进度
+## 配置
 
-- ✅ **第1阶段**：目录整理 + 核心模块提取（100%）
-- 🔄 **第2阶段**：架构设计 + 示例迁移（30%）
-- 📋 **第3阶段**：完整迁移 + 测试（待开始）
-
-### 代码统计
-
-| 指标 | 数值 |
-| :--- | :---: |
-| 核心模块 | 510行 |
-| 已迁移工具 | 4/21 |
-| 代码精简 | -73% |
-| 测试状态 | ✅ 通过 |
-
-## 📁 目录结构
-
-```
-findatamcp/
-├── findatamcp/          # 源代码（Python 包）
-│   ├── config.py        # 配置管理
-│   ├── cache/           # 缓存机制
-│   ├── database.py      # 数据库查询
-│   ├── server.py        # 主入口（Streamable HTTP）
-│   ├── server_sse.py    # SSE 入口
-│   ├── utils/           # 工具函数
-│   ├── tools/           # MCP 工具
-│   ├── resources/       # MCP 资源
-│   ├── prompts/         # MCP 提示词
-│   └── routes/          # HTTP 路由
-│
-├── docs/             # 文档
-├── scripts/          # 脚本
-├── legacy/           # 历史遗留脚本（单体 server、old collector 等）
-├── static/           # 静态资源（图表库）
-└── tests/            # 测试
-```
-
-## 📚 文档
-
-- **[项目文档](docs/README.md)** - 详细的项目文档
-- **[SSE 指南](docs/SSE_GUIDE.md)** - SSE 部署说明
-
-## 🔧 配置
-
-环境变量（`.env` 文件）：
+`.env` 常用变量：
 
 ```bash
-# Tushare Token（必需）
-TUSHARE_TOKEN=your_token_here
-
-# 后端 API 地址
-BACKEND_API_URL=http://localhost:8004
-
-# 服务器配置
-MCP_HOST=0.0.0.0
-MCP_PORT=8006
-
-# 缓存配置
-CACHE_ENABLED=true
+TUSHARE_TOKEN=your_token_here       # 必需
+MCP_SERVER_HOST=127.0.0.1
+MCP_SERVER_PORT=8006
+MCP_TRANSPORT=streamable-http        # 或 sse
+LOG_LEVEL=INFO
+PYTHONUNBUFFERED=1
 ```
 
-## 🎯 核心工具
+## 架构要点
 
-### 已模块化（4个）⭐
-- `get_stock_data` - 获取股票综合数据
-- `get_realtime_price` - 获取实时行情
-- `get_historical_data` - 获取历史数据
-- `get_basic_info` - 获取基本信息
+- **依赖注入**：`server.py` 组装 `TushareAPI` / `EntityStore` / cache，注入到各 `register_*_tools(mcp, api, …)`
+- **异步非阻塞**：tushare 同步调用以 thread executor 包装，避免阻塞事件循环
+- **缓存分层**：tushare 原始响应 / 计算结果 / 文件产物（JSONL + 列 schema sidecar）
+- **大数据响应**：工具可选 `as_file=true`，改为写入文件并返回资源 URI，配合 `include_ui=true` 让客户端直接渲染
+- **实体索引**：`EntityStore` 内存表 + pypinyin 索引，支持中文名 / 拼音首字母 / 别名检索
 
-### 待迁移（17个）
-- 财务数据工具（5个）
-- 业绩数据工具（2个）
-- 市场数据工具（2个）
-- 搜索查询工具（3个）
-- 高级分析工具（5个）
+## 文档
 
-## 💡 重构亮点
-
-### 1. 核心模块提取
-- ✅ 配置管理（80行）
-- ✅ 缓存机制（180行）
-- ✅ 数据库查询（120行）
-- ✅ API包装器（80行）
-
-### 2. 代码精简
-- 原 `tushare_collector_full.py`：1514行
-- 新 `findatamcp/utils/tushare_api.py`：80行
-- **减少 95%** ⭐⭐⭐
-
-### 3. 架构优化
-- 依赖注入模式
-- 工具注册模式
-- 异步非阻塞调用
-- 智能缓存管理
-
-## 📈 性能优化
-
-- **异步非阻塞**：避免事件循环阻塞
-- **智能缓存**：
-  - 实时数据：60秒
-  - 日线数据：1小时
-  - 财务数据：24小时
-- **数据对齐**：自动处理停牌和缺失值
-
-## 🚀 下一步
-
-### 选项A：完成工具迁移（推荐）
-预计时间：2-3小时
-
-### 选项B：保持当前状态（实用）
-- 原服务器稳定运行
-- 新架构已验证
-- 可逐步迁移
-
-## 📧 支持
-
-查看详细文档或联系开发团队。
-
----
-
-**版本**：2.0.0（模块化重构版）  
-**状态**：✅ 测试通过  
-**环境**：conda able_bff (Python 3.12.12)
+- [docs/README.md](docs/README.md) — 详细架构文档
+- [docs/SSE_GUIDE.md](docs/SSE_GUIDE.md) — SSE 部署与客户端接入
+- [docs/TUSHARE_TOOL_REFACTOR_CHECKLIST.md](docs/TUSHARE_TOOL_REFACTOR_CHECKLIST.md) — 工具重构清单
+- [docs/upgrade.md](docs/upgrade.md) — 升级记录
