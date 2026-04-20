@@ -376,6 +376,20 @@ pytest tests/
 
 - [docs/SSE_GUIDE.md](docs/SSE_GUIDE.md) — SSE 部署与客户端接入
 
+## 数据来源声明
+
+本项目使用 [Tushare Pro](https://tushare.pro/) 数据接口获取 A 股行情、财务、宏观等数据。
+
+**使用须知**：
+
+- Tushare 数据受《[Tushare 用户协议](https://tushare.pro/document/1?doc_id=409)》及《[Tushare 数据服务协议](https://tushare.pro/document/1?doc_id=405)》约束。
+- 数据所有权归上海挖地兔信息技术有限公司所有,用户仅获得有限、非独占、不可转让、可撤销的使用许可。
+- 数据仅供**个人研究、学习及非商业用途**使用,禁止商业用途、转售、账号共享、二次分发或 API 包装对外销售。
+- 数据仅供参考,不构成任何投资建议,用户使用后果自负。
+- 如需将本项目用于对外商业服务 / SaaS / 打包产品,请先自行与 Tushare 官方确认授权,本仓库作者不承担相关合规责任。
+
 ## License
 
-Tushare Pro 数据使用请遵循 [Tushare 用户协议](https://tushare.pro/document/1)。本仓库代码以 MIT 发布。
+- 本仓库代码以 **MIT License** 发布,详见根目录 [LICENSE](LICENSE) 文件。
+- 前端图表库 [Apache ECharts](https://echarts.apache.org/)(`static/echarts.min.js`)以 [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0) 发布,版权归 Apache Software Foundation 所有。
+- 通过本项目获取的 Tushare 数据不在 MIT 许可范围内,其使用须遵循上文《数据来源声明》中引用的 Tushare 官方协议。

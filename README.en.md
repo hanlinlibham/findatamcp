@@ -376,6 +376,20 @@ Covers cache, data processing, market statistics, tool registration, SSE client,
 
 - [docs/SSE_GUIDE.md](docs/SSE_GUIDE.md) — SSE deployment and client integration
 
+## Data Source Notice
+
+This project uses the [Tushare Pro](https://tushare.pro/) API for A-share market, financial, and macroeconomic data.
+
+**Usage terms**:
+
+- Tushare data is governed by the [Tushare User Agreement](https://tushare.pro/document/1?doc_id=409) and the [Tushare Data Service Agreement](https://tushare.pro/document/1?doc_id=405).
+- Data ownership remains with Shanghai Watuzi Information Technology Co., Ltd. Users receive only a limited, non-exclusive, non-transferable, revocable license to use the data.
+- Data is provided for **personal research, learning, and non-commercial use only**. Commercial use, resale, account sharing, redistribution, or wrapping the API for external sale is prohibited.
+- Data is for reference only and does not constitute investment advice. Users bear all consequences of its use.
+- If you intend to use this project for external commercial services, SaaS, or bundled products, you must obtain authorization directly from Tushare; the repository authors assume no compliance liability.
+
 ## License
 
-Tushare Pro data usage is subject to the [Tushare user agreement](https://tushare.pro/document/1). Code in this repo is released under MIT.
+- The code in this repository is released under the **MIT License**; see the root [LICENSE](LICENSE) file.
+- The frontend charting library [Apache ECharts](https://echarts.apache.org/) (`static/echarts.min.js`) is released under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0), copyright held by the Apache Software Foundation.
+- Tushare data obtained through this project is **not** covered by the MIT License; its use is subject to the Tushare agreements referenced in the Data Source Notice above.
