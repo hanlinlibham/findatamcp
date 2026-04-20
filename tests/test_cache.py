@@ -45,9 +45,9 @@ class TestTushareCache:
         
         result = await cache.cached_call(
             mock_api_call,
-            cache_type="daily",
+            "daily",
             5,
-            10
+            10,
         )
         
         assert result == 15
@@ -70,17 +70,17 @@ class TestTushareCache:
         # 第一次调用 - 缓存未命中
         result1 = await cache.cached_call(
             mock_api_call,
-            cache_type="daily",
-            5
+            "daily",
+            5,
         )
         assert result1 == 10
         assert call_count["count"] == 1
-        
+
         # 第二次调用 - 缓存命中
         result2 = await cache.cached_call(
             mock_api_call,
-            cache_type="daily",
-            5
+            "daily",
+            5,
         )
         assert result2 == 10
         assert call_count["count"] == 1  # 函数没有被再次调用
