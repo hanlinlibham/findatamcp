@@ -2,6 +2,11 @@
 
 > English · [中文](README.md)
 
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-green)](#license)
+[![MCP](https://img.shields.io/badge/MCP-2025--06--18-purple)](https://modelcontextprotocol.io/)
+[![FastMCP](https://img.shields.io/badge/built%20on-FastMCP-orange)](https://github.com/jlowin/fastmcp)
+
 **One call. Data for the model. UI for the human.**
 
 **findatamcp** lets LLM agents pull both *structured data for the model* and *an interactive chart for the user* in a single tool call. It ships 42 financial-data tools (A-share quotes, financial statements, funds, macro) and renders results as live UI — zoomable K-lines, market breadth dashboards, money-flow lines — via the MCP Apps spec. One fetch, no re-invocations, users interact directly in the artifact panel. Backed by Tushare Pro.
