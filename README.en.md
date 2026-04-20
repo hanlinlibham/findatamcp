@@ -116,7 +116,31 @@ Also exposed: resources (`entity_stats`, `large_data`, `stock_data`, `ui_apps`) 
 
 ## Implementation path
 
-At the heart of findatamcp is a three-layer contract: **tools produce data, the UI consumes it immersively, the LLM sees a terse summary**. The rest of this section walks the data flow end-to-end.
+### Design assumptions: two ways LLM agents collapse on financial-data workloads
+
+The whole project is built around two empirically observed failure modes:
+
+**Collapse ①: too many tools, the LLM can't choose.**
+Dumping 42 tool descriptions into the system prompt costs thousands of tokens before the conversation even begins, and near-duplicate names (`get_stock_data` / `get_realtime_price` / `get_historical_data` all touch quotes) interfere with each other — the model routinely picks wrong or probes repeatedly.
+
+Solution → **progressive disclosure** in `findatamcp/tools/meta.py`:
+- `get_tool_manifest()` — returns a catalogue grouped into 9 categories with `name + summary` only, so the LLM sees a table of contents first.
+- `focus_category("Quotes")` — via FastMCP's `ctx.disable_components(match_all=True)` + `enable_components(tags=...)`, all tools outside the requested category are **hidden from the LLM's view entirely**, leaving that category plus the three navigation tools.
+- `show_all_tools()` — restores the full surface.
+- Every `@mcp.tool(tags={"Quotes"}, ...)` carries a category tag; critical modules (`market_statistics`, `macro_data`) also spell out "When to use / When not to use" in their docstrings for direct decision hints.
+
+With visibility control on by default the LLM sees 3–8 tools at a time; the full 42 come back only when `show_all_tools` is invoked.
+
+**Collapse ②: a single tool call blows out the context.**
+Ask "show me CSI 300 daily bars for the past eight years" and a naïve implementation serialises 2000+ rows × 10 columns of JSON straight into `content.text` — 30k+ tokens in one response, after which the conversation is effectively done.
+
+Solution → **keep data out of the context; put pointers in** (`findatamcp/utils/large_data_handler.py` + `findatamcp/resources/large_data.py`):
+- `THRESHOLD = 200 rows`. Above that, nothing is inlined.
+- Returns `preview` (first 5 rows) + `summary` (date range + per-numeric-column latest/min/max/mean) + `resource_uri = data://table/{id}`. The LLM sees a dozen lines of summary while the full 2000 rows sit in a `.jsonl` artifact.
+- To read details, the LLM calls `resources/read` on that URI; to compute metrics it invokes `execute` against the file; the frontend UI drills through `stock://calc_metrics/...` / `data://` on demand.
+- For long time series (K-lines etc.), `sample_rows` does an additional max-120-point equidistant sample, keeping UI render cost bounded.
+
+Together, both the *system prompt tokens* (tool descriptions) and *message tokens* (tool returns) are **actively offloaded** rather than left to rely on whatever context window the host happens to support.
 
 ### 1. Envelope contract: content + structuredContent + meta
 

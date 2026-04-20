@@ -116,7 +116,31 @@ findatamcp/
 
 ## 实现路径
 
-findatamcp 的核心是一套**"工具侧生产数据、UI 侧沉浸式消费、LLM 侧简短摘要"**的三层契约。下面按数据流向拆解。
+### 核心假设：LLM Agent 在金融数据场景下的两种崩溃方式
+
+整个项目是围绕两个实测的失败模式设计的：
+
+**崩溃 ①：工具太多，LLM 选不动**
+一次性把 42 个工具描述塞给模型，仅 system prompt 就占数千 token，而且近似工具互相干扰（`get_stock_data` / `get_realtime_price` / `get_historical_data` 都和行情沾边），LLM 经常选错或反复试探。
+
+解决路径 → **渐进披露（progressive disclosure）**，实现在 `findatamcp/tools/meta.py`：
+- `get_tool_manifest()` —— 返回按 9 个分类分组的工具清单，每条只有 `name + summary`，LLM 先看目录
+- `focus_category("行情数据")` —— 通过 FastMCP `ctx.disable_components(match_all=True)` + `enable_components(tags=...)` 把非该分类的工具从 LLM 视野里**整体隐藏**，只保留当前分类 + 导航三个工具
+- `show_all_tools()` —— 恢复全量
+- 每个 `@mcp.tool(tags={"行情数据"}, ...)` 带中文分类 tag，关键模块（`market_statistics` / `macro_data`）额外在 docstring 里写"适用场景 / 不适用场景"，直接给 LLM 决策提示
+
+默认 visibility 控制让 LLM 看到的工具数量在 3–8 个之间，真正需要 42 个并排对比时再 `show_all_tools`。
+
+**崩溃 ②：一次工具调用把上下文塞爆**
+用户问"过去 8 年沪深 300 日线看看走势"，天真实现会把 2000+ 行每行 10 列的 JSON 全塞回 `content.text`，光这一次回复就 30k+ token，后续几乎无法继续对话。
+
+解决路径 → **数据不进上下文，指针进上下文**（`findatamcp/utils/large_data_handler.py` + `findatamcp/resources/large_data.py`）：
+- 阈值 `THRESHOLD = 200 行`，超过就不再内联
+- 返回 `preview（前 5 行）+ summary（date_range + 数值列 latest/min/max/mean）+ resource_uri = data://table/{id}`，LLM 看到的是十几行摘要，完整 2000 行躺在 `.jsonl` artifact 文件里
+- 需要看细节时 LLM 主动 `resources/read` 这个 URI；需要算指标时调用 `execute` 读文件；前端 UI 直接通过 `stock://calc_metrics/...` / `data://` 按需下钻
+- 对长时间序列（K 线等），`sample_rows` 再做一次 max 120 点的等距采样，UI 渲染压力被压到常量级
+
+两条路径合起来，LLM 的 system prompt token（工具描述）和 message token（工具返回）**都被主动分流**，而不是寄希望于 context window 够大。
 
 ### 1. Envelope 契约：content + structuredContent + meta
 
