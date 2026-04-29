@@ -36,6 +36,7 @@ patch_*.py
 
 # Personal TODOs
 docs/*-todo-*.md
+*.bak2*
 
 # Historical scripts (kept locally, not version-controlled)
 legacy/
