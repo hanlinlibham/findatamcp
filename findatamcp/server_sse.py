@@ -66,6 +66,9 @@ from findatamcp.resources.stock_data import register_stock_data_resources
 from findatamcp.resources.ui_apps import register_ui_app_resources
 from findatamcp.prompts.stock_analysis import register_stock_prompts
 
+# 全局请求日志中间件
+from findatamcp.middleware.logging import LoggingMiddleware
+
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
@@ -100,6 +103,9 @@ def create_mcp_server() -> FastMCP:
 端点: /sse (事件流), /messages (消息接收)
 """
     )
+
+    # 注册全局请求日志中间件(tool/resource/list/init)
+    mcp.add_middleware(LoggingMiddleware())
 
     # 初始化组件
     api = TushareAPI(config.TUSHARE_TOKEN)
