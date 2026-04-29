@@ -30,7 +30,7 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
         limit: int = 10,
         date: Optional[str] = None,
         as_file: bool = False,
-        include_ui: bool = True,
+        include_ui: bool = False,
     ) -> Dict[str, Any]:
         """
         获取某行业/板块的龙头股列表（按市值排序）
@@ -265,7 +265,7 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
             }
 
     @mcp.tool(tags={"行业板块"}, app=DATA_TABLE_APP)
-    async def get_top_list(trade_date: str, market_type: str = "SH", as_file: bool = False, include_ui: bool = True) -> Dict[str, Any]:
+    async def get_top_list(trade_date: str, market_type: str = "SH", as_file: bool = False, include_ui: bool = False) -> Dict[str, Any]:
         """
         获取龙虎榜数据
 
