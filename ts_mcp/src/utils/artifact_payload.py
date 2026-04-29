@@ -1,21 +1,26 @@
-"""MCP 工具 envelope 统一构造器（v3：content-first，去混淆）
+"""MCP 工具 envelope 统一构造器（v3：content-first）
 
-核心契约：
-  - content[0].text  = LLM 唯一可信信道：header 摘要 + markdown 表格 + 引导
-  - structuredContent = 机器读的数据层（rows 单源、columns 带 type、path 可选）
-    不放 hint、不放引用路径、不放副本。
+契约：
+  - content[0].text   LLM 必看:header + markdown 表格(前 N 行) + 引导
+  - structuredContent 机器/UI 读的数据层
 
-四种组合（as_file, include_ui）行为不变：
-  F, T → UI + text 内联 markdown 表格（前 N 行）
-  T, T → UI + text 表格 + path
-  T, F → 无 UI + text 表格 + path（ToolResult.meta={ui: None}）
-  F, F → 无 UI + text 表格
+structuredContent 字段:
+  - rows / columns / row_count / date_range  数据本体(rows 仅在非 as_file 模式 inline)
+  - path / download_urls                     仅 as_file=True
+  - data / daily_data.items                  仅 include_ui=True 的 iframe 兼容别名,
+                                             与 rows 同源
+
+四种组合(as_file, include_ui)的差异:
+  F, F (默认)  rows inline,    无 UI 别名,           meta={ui:None}
+  F, T         rows inline,    +data/daily_data,     meta=None
+  T, F         rows=[],path,   无 UI 别名,           meta={ui:None}
+  T, T         rows=[],path,   data=[]/daily_data=[],meta=None
 """
 
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from fastmcp.tools.tool import ToolResult
 from mcp.types import TextContent
@@ -118,32 +123,37 @@ def build_artifact_envelope(
     max_rows_in_text: int = 10,
     filename: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """生成 envelope 各部件。
+    """生成 envelope 各部件,调用方用 finalize_artifact_result 包成 ToolResult。
 
-    返回：
-        # structuredContent 字段（调用方 .update 进去）
-        row_count    : int
-        columns      : list[{name, type}]
-        rows         : list[dict]        唯一数据源（完整数据）
-        date_range   : [min, max] | 缺省 （当且仅当有 date 列）
-        path         : str               仅 as_file=True
-        download_urls: dict              仅 as_file=True
+    structuredContent 字段(调用方 .update 进去):
+      row_count, columns, rows, date_range  恒有 (rows 在 as_file 时为 [])
+      path, download_urls                   仅 as_file=True
+      data, daily_data                      仅 include_ui=True (与 rows 同源,
+                                            供 ui:// iframe 渲染:多数模板读 raw.data,
+                                            kline-chart 读 raw.daily_data.items)
 
-        # 以下字段由调用方消费，不进 structuredContent
-        _content_text  : str             content[0].text 全文
-        _meta_override : dict | None     ToolResult.meta（include_ui=False 时 {'ui': None}）
+    内部带下划线字段由 finalize_artifact_result pop 掉,不进 structuredContent:
+      _content_text   content[0].text 全文
+      _meta_override  ToolResult.meta(include_ui=False 时 {'ui': None})
     """
     column_names = list(rows[0].keys()) if rows else []
     columns_typed = build_columns_typed(rows, column_names)
     row_count = len(rows)
 
+    # 统一决定 inline 数据载体:as_file 时为 [],否则等于 rows。
+    # 三个字段(rows/data/daily_data.items)共用同一引用,序列化时各自一份副本。
+    payload: List[Dict[str, Any]] = [] if as_file else list(rows)
+
     fields: Dict[str, Any] = {
         "row_count": row_count,
         "columns": columns_typed,
-        "rows": list(rows),
+        "rows": payload,
     }
+    if include_ui:
+        fields["data"] = payload
+        fields["daily_data"] = {"items": payload}
 
-    # date_range：选第一个识别为 date 的列
+    # date_range:从首个 date 列推
     date_col = next((c["name"] for c in columns_typed if c["type"] == "date"), None)
     if date_col and rows:
         vals = [r[date_col] for r in rows if r.get(date_col) is not None]
@@ -170,19 +180,14 @@ def build_artifact_envelope(
         path=path,
         include_ui=include_ui,
     )
-    parts: List[str] = []
-    if header_text:
-        parts.append(header_text.rstrip())
-    if table_md:
-        parts.append(table_md)
-    if trailer:
-        parts.append(trailer)
+    parts: List[str] = [p for p in (header_text.rstrip() if header_text else "", table_md, trailer) if p]
     fields["_content_text"] = "\n\n".join(parts)
     fields["_meta_override"] = {"ui": None} if not include_ui else None
     return fields
 
 
-# 历史上留下来的字段，新 envelope 契约下统一剔除
+# 老版本工具可能在 result 里写过的字段:finalize 时统一剔除,然后由 env 重写。
+# 现在所有 tools 都走 envelope,这里基本是防御性兜底,留着不亏。
 _LEGACY_STRUCTURED_KEYS = (
     "rows_preview", "_llm_hint", "schema",
     "daily_data", "data_note", "items_note",
@@ -205,12 +210,12 @@ def finalize_artifact_result(
     max_rows_in_text: int = 10,
     filename: Optional[str] = None,
 ) -> ToolResult:
-    """统一 envelope 出口 —— 始终返回 ToolResult 以控制 content.text。
+    """统一 envelope 出口,始终返回 ToolResult 以控制 content.text。
 
-    - 清理 result 里的旧字段（rows_preview/_llm_hint/daily_data/...）
-    - 合入 row_count/columns/rows/date_range/path
-    - content[0].text = header + markdown table + trailer
-    - include_ui=False → meta={ui: None} 覆盖信号
+    流程:
+      1. build_artifact_envelope 生成数据字段 + _content_text + _meta_override
+      2. 剥离 _LEGACY_STRUCTURED_KEYS 残留(防御),把 env 字段合入 result
+      3. 包成 ToolResult(content + structuredContent + meta)
     """
     env = build_artifact_envelope(
         rows,
@@ -271,14 +276,16 @@ def build_artifact_fields(
 AS_FILE_INCLUDE_UI_DECISION_GUIDE = """
 
 【as_file / include_ui 决策指南】
-默认（as_file=False, include_ui=True）：UI iframe + content.text 内联 markdown 表格，
-通常足以回答问题；不要重复调用。
+默认（as_file=False, include_ui=False）：仅 content.text 内联 markdown 表格 + 结构化数据，
+不附加 ui:// iframe、不下发 UI 兼容字段；适合纯文本/分析场景，省 token 和带宽。
+何时设 include_ui=True（启用内嵌交互式 UI）：
+  - 用户明确要求"画图 / 出图 / 看走势 / 看分布 / 渲染图表"等可视化诉求
+  - 你确认调用方 Host 支持 MCP Apps iframe 渲染（如 Claude.ai web、其它 UI Host）
+  - 数据本身高度适合可视化（K 线、净值曲线、资金流、相关性矩阵等）
+  - 设了 include_ui=True 后,structuredContent 会带 data + daily_data 别名,
+    ToolResult.meta 不再屏蔽 ui 钩子,前端 iframe 才能拿到数据渲染。
 何时设 as_file=True（把完整数据写成 .jsonl 文件）：
   - 用户明确要求"保存 / 导出 / 下载"数据
   - 你计划用 execute 工具对数据做自定义分析（聚合月线、多标的对比、计算指标等）
-  - 数据规模或维度超出内嵌 UI 范围
-  - 用户要求以表格形式交互（排序、筛选）
-何时设 include_ui=False（跳过内嵌 UI）：
-  - 你已决定 as_file=True 并打算自己绘图——避免两张图混淆
-  - 用户只需要数据做逻辑判断，不需要可视化
+  - 数据规模或维度大,inline markdown 表格无法承载
 """

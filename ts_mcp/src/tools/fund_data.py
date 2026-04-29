@@ -206,10 +206,11 @@ def register_fund_tools(mcp: FastMCP, api: TushareAPI):
         end_date: Optional[str] = None,
         market: Optional[str] = None,
         as_file: bool = False,
-        include_ui: bool = True,
+        include_ui: bool = False,
     ) -> Dict[str, Any]:
         """获取基金净值时间序列（单位净值、累计净值、调整净值）。
-返回形态（默认）：内嵌净值曲线 UI（ui://findata/fund-nav-chart）+ 结构化数据预览。
+返回形态（默认）：content.text 内联 markdown 表格 + 结构化数据,无内嵌 UI。
+设 include_ui=True 才附加交互式净值曲线（ui://findata/fund-nav-chart）。
 
 Args:
     ts_code: 基金代码，如 '510300.SH'、'000001.OF'
@@ -217,7 +218,7 @@ Args:
     end_date: 结束日期(YYYYMMDD)
     market: E(场内) / O(场外)，可选
     as_file: 为 True 时把完整净值序列写成 .jsonl 文件
-    include_ui: 为 False 时不附加内嵌净值曲线 UI
+    include_ui: 为 True 时附加交互式净值曲线 UI(默认 False,有可视化需求时才开)
 """ + AS_FILE_INCLUDE_UI_DECISION_GUIDE
         try:
             if not api.is_available():

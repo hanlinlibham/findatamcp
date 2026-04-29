@@ -101,7 +101,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
     @mcp.tool(tags={"宏观数据"}, app=MACRO_PANEL_APP)
     async def get_macro_summary(
         as_file: bool = False,
-        include_ui: bool = True,
+        include_ui: bool = False,
     ) -> Union[ToolResult, Dict[str, Any]]:
         """
         【宏观概览】一次调用获取最新的关键宏观经济指标
@@ -402,7 +402,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
         end_q: Optional[str] = None,
         limit: int = 8,
         as_file: bool = False,
-        include_ui: bool = True,
+        include_ui: bool = False,
     ) -> Dict[str, Any]:
         """
         【GDP数据】获取中国季度GDP及分产业数据
@@ -538,7 +538,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
         end_m: Optional[str] = None,
         limit: int = 12,
         as_file: bool = False,
-        include_ui: bool = True,
+        include_ui: bool = False,
     ) -> Dict[str, Any]:
         """
         【CPI数据】获取中国居民消费价格指数
@@ -680,7 +680,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
         end_m: Optional[str] = None,
         limit: int = 12,
         as_file: bool = False,
-        include_ui: bool = True,
+        include_ui: bool = False,
     ) -> Dict[str, Any]:
         """
         【PMI数据】获取中国采购经理指数
@@ -822,7 +822,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
         end_m: Optional[str] = None,
         limit: int = 12,
         as_file: bool = False,
-        include_ui: bool = True,
+        include_ui: bool = False,
     ) -> Dict[str, Any]:
         """
         【货币供应量】获取M0/M1/M2数据
@@ -989,7 +989,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
         end_date: Optional[str] = None,
         limit: int = 30,
         as_file: bool = False,
-        include_ui: bool = True,
+        include_ui: bool = False,
     ) -> Dict[str, Any]:
         """
         【利率数据】获取SHIBOR和LPR利率
@@ -1155,7 +1155,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
         end_m: Optional[str] = None,
         limit: int = 12,
         as_file: bool = False,
-        include_ui: bool = True,
+        include_ui: bool = False,
     ) -> Dict[str, Any]:
         """
         【PPI数据】获取工业品出厂价格指数
