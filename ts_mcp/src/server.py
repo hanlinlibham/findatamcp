@@ -144,6 +144,9 @@ from src.prompts.stock_analysis import register_stock_prompts
 from src.routes.data_download import register_data_routes
 from src.cache.data_file_store import data_file_store
 
+# 全局请求日志中间件
+from src.middleware.logging import LoggingMiddleware
+
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
@@ -179,7 +182,10 @@ def create_mcp_server() -> FastMCP:
         ),
         lifespan=server_lifespan,
     )
-    
+
+    # 注册全局请求日志中间件(tool/resource/list/init)
+    mcp.add_middleware(LoggingMiddleware())
+
     # 初始化组件
     api = TushareAPI(config.TUSHARE_TOKEN)
     db = EntityStore()
