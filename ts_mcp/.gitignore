@@ -36,3 +36,4 @@ patch_*.py
 
 # Personal TODOs
 docs/*-todo-*.md
+*.bak2*
