@@ -288,7 +288,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
         period: str = "3y",
         calc_type: str = "raw",
         as_file: bool = False,
-        include_ui: bool = True,
+        include_ui: bool = False,
     ) -> Dict[str, Any]:
         """
         获取财务指标与增长分析（聚合工具）
@@ -512,7 +512,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
         end_date: str = None,
         analysis_type: str = "correlation",
         as_file: bool = False,
-        include_ui: bool = True,
+        include_ui: bool = False,
     ) -> Dict[str, Any]:
         """
         量化分析工具（相关性、贝塔、业绩对比）
@@ -1061,7 +1061,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
             }
 
     @mcp.tool(tags={"量化分析"}, app=CORRELATION_MATRIX_APP)
-    async def calculate_metrics(stock_codes: List[str], start_date: str = None, end_date: str = None, metric: str = "close", as_file: bool = False, include_ui: bool = True) -> Dict[str, Any]:
+    async def calculate_metrics(stock_codes: List[str], start_date: str = None, end_date: str = None, metric: str = "close", as_file: bool = False, include_ui: bool = False) -> Dict[str, Any]:
         """
         计算一组股票的金融指标（相关性矩阵）
 

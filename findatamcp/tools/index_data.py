@@ -166,10 +166,11 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         as_file: bool = False,
-        include_ui: bool = True,
+        include_ui: bool = False,
     ) -> Dict[str, Any]:
         """获取指数估值数据（PE/PB/换手率/市值，支持宽基和申万指数）。
-返回形态（默认）：内嵌估值曲线 UI（ui://findata/series-chart）+ 结构化数据预览。
+返回形态（默认）：content.text 内联 markdown 表格 + 结构化数据,无内嵌 UI。
+设 include_ui=True 才附加交互式估值曲线（ui://findata/series-chart）。
 
 Args:
     ts_code: 指数代码，如 '000300.SH'(沪深300)、'801010.SI'(申万农林牧渔)
@@ -177,7 +178,7 @@ Args:
     start_date: 开始日期(YYYYMMDD)
     end_date: 结束日期(YYYYMMDD)
     as_file: 为 True 时把完整估值序列写成 .jsonl 文件
-    include_ui: 为 False 时不附加内嵌估值曲线 UI
+    include_ui: 为 True 时附加交互式估值曲线 UI(默认 False,有可视化需求时才开)
 """ + AS_FILE_INCLUDE_UI_DECISION_GUIDE
         try:
             if not api.is_available():

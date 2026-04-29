@@ -375,12 +375,13 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
         include_items: bool = True,
         max_rows: int = 30,
         as_file: bool = False,
-        include_ui: bool = True,
+        include_ui: bool = False,
         stock_code: Optional[str] = None,  # 兼容旧参数名
         code: Optional[str] = None  # 兼容 code 别名
     ) -> Union[ToolResult, Dict[str, Any]]:
         """获取证券历史行情数据及统计指标（波动率、区间涨跌幅、价格区间）。
-返回形态（默认）：内嵌交互式 K 线 UI（ui://findata/kline-chart）+ 结构化数据预览。
+返回形态（默认）：content.text 内联 markdown 表格 + 结构化数据,无内嵌 UI。
+设 include_ui=True 才附加交互式 K 线（ui://findata/kline-chart）。
 
 Args:
     ts_code: 股票或指数代码，支持 '600519.SH'、'00700.HK'、'AAPL'、'399001.SZ' 等
@@ -390,7 +391,7 @@ Args:
     include_items: 是否返回每日明细，默认 True
     max_rows: 明细最大行数，默认30
     as_file: 为 True 时把完整数据写成 .jsonl 文件，在 structuredContent 里返 path
-    include_ui: 为 False 时不附加 ui:// 内嵌 UI（用于 agent 自己绘图 / 避免重复展示）
+    include_ui: 为 True 时附加 K 线 iframe(默认 False,有可视化需求或 host 支持 iframe 时才开)
     stock_code: ts_code 的别名
     code: ts_code 的别名
 """ + AS_FILE_INCLUDE_UI_DECISION_GUIDE
@@ -481,19 +482,20 @@ Args:
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         as_file: bool = False,
-        include_ui: bool = True,
+        include_ui: bool = False,
         stock_code: Optional[str] = None,  # 兼容旧参数名
         code: Optional[str] = None  # 兼容 code 别名
     ) -> Union[ToolResult, Dict[str, Any]]:
         """获取个股资金流向（主力/散户净流入，仅A股）。
-返回形态（默认）：内嵌资金流向 UI（ui://findata/moneyflow-chart）+ 结构化数据预览。
+返回形态（默认）：content.text 内联 markdown 表格 + 结构化数据,无内嵌 UI。
+设 include_ui=True 才附加交互式资金流向图（ui://findata/moneyflow-chart）。
 
 Args:
     ts_code: A股代码，支持 '600519.SH' 或 '600519'
     start_date: 开始日期(YYYYMMDD)，默认最近30天
     end_date: 结束日期(YYYYMMDD)，默认今天
     as_file: 为 True 时把完整数据写成 .jsonl 文件
-    include_ui: 为 False 时不附加 ui:// 内嵌 UI
+    include_ui: 为 True 时附加资金流向 iframe(默认 False,有可视化需求或 host 支持 iframe 时才开)
     stock_code: ts_code 的别名
     code: ts_code 的别名
 """ + AS_FILE_INCLUDE_UI_DECISION_GUIDE
