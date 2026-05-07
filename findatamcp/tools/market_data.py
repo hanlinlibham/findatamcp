@@ -9,19 +9,20 @@
 
 import asyncio
 import pandas as pd
-from typing import Dict, Any, Optional, Union
+from typing import Annotated, Dict, Any, Optional, Union
 from datetime import datetime, timedelta
 from fastmcp import FastMCP
 from fastmcp.server.apps import AppConfig
 from fastmcp.tools.tool import ToolResult
 from mcp.types import TextContent
+from pydantic import Field
 
 from ..cache import cache
 from ..utils.tushare_api import TushareAPI, fetch_daily_data
 from ..utils.large_data_handler import THRESHOLD, handle_large_data, merge_large_data_payload, prepare_large_data_view
 from ..utils.ui_hint import append_hint_to_summary
 from ..utils.artifact_payload import finalize_artifact_result, AS_FILE_INCLUDE_UI_DECISION_GUIDE
-from .constants import READONLY_ANNOTATIONS
+from .constants import INCLUDE_UI_DESCRIPTION, READONLY_ANNOTATIONS
 
 KLINE_CHART_APP = AppConfig(
     resource_uri="ui://findata/kline-chart",
@@ -375,7 +376,7 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
         include_items: bool = True,
         max_rows: int = 30,
         as_file: bool = False,
-        include_ui: bool = False,
+        include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
         stock_code: Optional[str] = None,  # 兼容旧参数名
         code: Optional[str] = None  # 兼容 code 别名
     ) -> Union[ToolResult, Dict[str, Any]]:
@@ -391,7 +392,6 @@ Args:
     include_items: 是否返回每日明细，默认 True
     max_rows: 明细最大行数，默认30
     as_file: 为 True 时把完整数据写成 .jsonl 文件，在 structuredContent 里返 path
-    include_ui: 为 True 时附加 K 线 iframe(默认 False,有可视化需求或 host 支持 iframe 时才开)
     stock_code: ts_code 的别名
     code: ts_code 的别名
 """ + AS_FILE_INCLUDE_UI_DECISION_GUIDE
@@ -482,7 +482,7 @@ Args:
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         as_file: bool = False,
-        include_ui: bool = False,
+        include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
         stock_code: Optional[str] = None,  # 兼容旧参数名
         code: Optional[str] = None  # 兼容 code 别名
     ) -> Union[ToolResult, Dict[str, Any]]:
@@ -495,7 +495,6 @@ Args:
     start_date: 开始日期(YYYYMMDD)，默认最近30天
     end_date: 结束日期(YYYYMMDD)，默认今天
     as_file: 为 True 时把完整数据写成 .jsonl 文件
-    include_ui: 为 True 时附加资金流向 iframe(默认 False,有可视化需求或 host 支持 iframe 时才开)
     stock_code: ts_code 的别名
     code: ts_code 的别名
 """ + AS_FILE_INCLUDE_UI_DECISION_GUIDE

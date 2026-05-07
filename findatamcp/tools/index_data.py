@@ -6,10 +6,11 @@
 - get_industry_overview: 行业分类与成分查询（申万/中信）
 """
 
-from typing import Literal, Dict, Any, Optional
+from typing import Annotated, Literal, Dict, Any, Optional
 from datetime import datetime
 from fastmcp import FastMCP
 from fastmcp.server.apps import AppConfig
+from pydantic import Field
 import logging
 
 from ..cache import cache
@@ -17,7 +18,7 @@ from ..utils.tushare_api import TushareAPI
 from ..utils.large_data_handler import handle_large_data, merge_large_data_payload, prepare_large_data_view
 from ..utils.ui_hint import attach_hint_to_dict
 from ..utils.artifact_payload import finalize_artifact_result, AS_FILE_INCLUDE_UI_DECISION_GUIDE
-from .constants import READONLY_ANNOTATIONS
+from .constants import INCLUDE_UI_DESCRIPTION, READONLY_ANNOTATIONS
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +167,7 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         as_file: bool = False,
-        include_ui: bool = False,
+        include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
     ) -> Dict[str, Any]:
         """获取指数估值数据（PE/PB/换手率/市值，支持宽基和申万指数）。
 返回形态（默认）：content.text 内联 markdown 表格 + 结构化数据,无内嵌 UI。
@@ -178,7 +179,6 @@ Args:
     start_date: 开始日期(YYYYMMDD)
     end_date: 结束日期(YYYYMMDD)
     as_file: 为 True 时把完整估值序列写成 .jsonl 文件
-    include_ui: 为 True 时附加交互式估值曲线 UI(默认 False,有可视化需求时才开)
 """ + AS_FILE_INCLUDE_UI_DECISION_GUIDE
         try:
             if not api.is_available():

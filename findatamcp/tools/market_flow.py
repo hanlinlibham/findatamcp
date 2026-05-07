@@ -5,15 +5,17 @@
 - get_top_list: 获取龙虎榜数据
 """
 
-from typing import Dict, Any, Optional
+from typing import Annotated, Dict, Any, Optional
 from datetime import datetime
 from fastmcp import FastMCP
 from fastmcp.server.apps import AppConfig
+from pydantic import Field
 
 from ..cache import cache
 from ..utils.tushare_api import TushareAPI
 from ..utils.ui_hint import attach_hint_to_dict, build_ui_hint as build_ui_hint_local
 from ..utils.artifact_payload import finalize_artifact_result, AS_FILE_INCLUDE_UI_DECISION_GUIDE
+from .constants import INCLUDE_UI_DESCRIPTION
 
 DATA_TABLE_APP = AppConfig(
     resource_uri="ui://findata/data-table",
@@ -30,7 +32,7 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
         limit: int = 10,
         date: Optional[str] = None,
         as_file: bool = False,
-        include_ui: bool = False,
+        include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
     ) -> Dict[str, Any]:
         """
         获取某行业/板块的龙头股列表（按市值排序）
@@ -265,7 +267,12 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
             }
 
     @mcp.tool(tags={"行业板块"}, app=DATA_TABLE_APP)
-    async def get_top_list(trade_date: str, market_type: str = "SH", as_file: bool = False, include_ui: bool = False) -> Dict[str, Any]:
+    async def get_top_list(
+        trade_date: str,
+        market_type: str = "SH",
+        as_file: bool = False,
+        include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
+    ) -> Dict[str, Any]:
         """
         获取龙虎榜数据
 

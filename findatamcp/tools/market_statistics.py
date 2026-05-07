@@ -8,12 +8,13 @@
 """
 
 import asyncio
-from typing import Dict, Any, List, Optional, Union
+from typing import Annotated, Dict, Any, List, Optional, Union
 from datetime import datetime, timedelta
 from fastmcp import FastMCP
 from fastmcp.server.apps import AppConfig
 from fastmcp.tools.tool import ToolResult
 from mcp.types import TextContent
+from pydantic import Field
 import pandas as pd
 import numpy as np
 import logging
@@ -25,6 +26,7 @@ from ..utils.response import build_success_response, build_error_response, build
 from ..utils.errors import ErrorCode
 from ..utils.ui_hint import append_hint_to_summary
 from ..utils.artifact_payload import finalize_artifact_result, AS_FILE_INCLUDE_UI_DECISION_GUIDE
+from .constants import INCLUDE_UI_DESCRIPTION
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +53,7 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
         market: str = "all",
         include_st: bool = False,
         as_file: bool = False,
-        include_ui: bool = False,
+        include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
     ) -> Union[ToolResult, Dict[str, Any]]:
         """
         【市场概况】一次调用获取A股整体涨跌/成交/涨停跌停统计
@@ -517,7 +519,7 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
         start_date: str = "",
         end_date: Optional[str] = None,
         as_file: bool = False,
-        include_ui: bool = False,
+        include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
         ts_codes: Optional[List[str]] = None,  # 兼容别名
         codes: Optional[List[str]] = None  # 兼容别名
     ) -> Union[ToolResult, Dict[str, Any]]:
