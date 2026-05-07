@@ -644,7 +644,7 @@ body {
           '<div class="summary-item"><div class="summary-label">最大单日跌幅</div><div class="summary-value" style="color:var(--color-negative)">' + (stats.max_single_day_loss != null ? stats.max_single_day_loss.toFixed(2) + '%' : '-') + '</div></div>' +
           '</div></div>';
       } else {
-        html += '<div class="summary" style="text-align:center;color:var(--color-text-secondary)">暂无行情数据</div>';
+        html += '<div class="summary" style="text-align:center;color:var(--color-text-secondary)">该工具本次未返回图表数据。如需查看交互式图表,请让 AI 重新调用并启用图表渲染。</div>';
       }
       app.innerHTML = html;
       notifySize();
@@ -938,7 +938,7 @@ body {
 
     if (!items.length) {
       app.innerHTML = '<div class="header"><h2>' + tsCode + ' 资金流向</h2></div>' +
-        '<div style="text-align:center;padding:48px 0;color:var(--color-text-secondary)">暂无资金流向数据</div>';
+        '<div style="text-align:center;padding:48px 0;color:var(--color-text-secondary)">该工具本次未返回图表数据。如需查看交互式图表,请让 AI 重新调用并启用图表渲染。</div>';
       notifySize();
       return;
     }
@@ -1192,7 +1192,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
 
   function render(payload) {
     if (!payload || !payload.data || !payload.data.length) {
-      document.getElementById('app').innerHTML = '<div class="loading">无净值数据</div>';
+      document.getElementById('app').innerHTML = '<div class="loading">该工具本次未返回图表数据。如需查看交互式图表,请让 AI 重新调用并启用图表渲染。</div>';
       return;
     }
     var stats = payload.stats || [];
@@ -1333,7 +1333,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
 
   function render(payload) {
     if (!payload || !payload.panels || !payload.panels.length) {
-      document.getElementById('app').innerHTML = '<div class="loading">缺少可视化配置</div>';
+      document.getElementById('app').innerHTML = '<div class="loading">该工具本次未返回图表数据。如需查看交互式图表,请让 AI 重新调用并启用图表渲染。</div>';
       return;
     }
     charts.forEach(function(chart){ try { chart.dispose(); } catch(e) {} });
@@ -1523,7 +1523,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
 
   function render(payload) {
     if (!payload || !payload.labels || !payload.labels.length) {
-      document.getElementById('app').innerHTML = '<div class="loading">缺少相关性数据</div>';
+      document.getElementById('app').innerHTML = '<div class="loading">该工具本次未返回图表数据。如需查看交互式图表,请让 AI 重新调用并启用图表渲染。</div>';
       return;
     }
     var stats = payload.stats || [];
@@ -1708,7 +1708,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
 
   function render(payload) {
     if (!payload || !payload.panels || !payload.panels.length) {
-      document.getElementById('app').innerHTML = '<div class="loading">缺少财务序列数据</div>';
+      document.getElementById('app').innerHTML = '<div class="loading">该工具本次未返回图表数据。如需查看交互式图表,请让 AI 重新调用并启用图表渲染。</div>';
       return;
     }
     charts.forEach(function(chart){ try { chart.dispose(); } catch(e) {} });
