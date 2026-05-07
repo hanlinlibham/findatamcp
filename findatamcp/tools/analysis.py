@@ -6,10 +6,11 @@
 - analyze_stock_performance: 深度量化分析（Sharpe/Sortino/RSI/MACD）
 """
 
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Annotated, Dict, Any, List, Optional, Tuple
 from datetime import datetime, timedelta
 from fastmcp import FastMCP
 from fastmcp.server.apps import AppConfig
+from pydantic import Field
 import pandas as pd
 import numpy as np
 import logging
@@ -20,6 +21,7 @@ from ..utils.tushare_api import TushareAPI, fetch_daily_data
 from ..utils.large_data_handler import sample_rows
 from ..utils.ui_hint import attach_hint_to_dict
 from ..utils.artifact_payload import finalize_artifact_result, AS_FILE_INCLUDE_UI_DECISION_GUIDE
+from .constants import INCLUDE_UI_DESCRIPTION
 # P0-2: 使用共享的日期容错工具
 from ..utils.data_processing import adjust_end_date_to_latest_trading_day as _adjust_end_date_to_latest_trading_day
 
@@ -288,7 +290,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
         period: str = "3y",
         calc_type: str = "raw",
         as_file: bool = False,
-        include_ui: bool = False,
+        include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
     ) -> Dict[str, Any]:
         """
         获取财务指标与增长分析（聚合工具）
@@ -512,7 +514,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
         end_date: str = None,
         analysis_type: str = "correlation",
         as_file: bool = False,
-        include_ui: bool = False,
+        include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
     ) -> Dict[str, Any]:
         """
         量化分析工具（相关性、贝塔、业绩对比）
@@ -1061,7 +1063,14 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
             }
 
     @mcp.tool(tags={"量化分析"}, app=CORRELATION_MATRIX_APP)
-    async def calculate_metrics(stock_codes: List[str], start_date: str = None, end_date: str = None, metric: str = "close", as_file: bool = False, include_ui: bool = False) -> Dict[str, Any]:
+    async def calculate_metrics(
+        stock_codes: List[str],
+        start_date: str = None,
+        end_date: str = None,
+        metric: str = "close",
+        as_file: bool = False,
+        include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
+    ) -> Dict[str, Any]:
         """
         计算一组股票的金融指标（相关性矩阵）
 

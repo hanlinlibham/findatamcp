@@ -6,10 +6,11 @@
 - get_fund_portfolio: 基金持仓明细 / 反查个股被持仓
 """
 
-from typing import Dict, Any, Optional
+from typing import Annotated, Dict, Any, Optional
 from datetime import datetime
 from fastmcp import FastMCP
 from fastmcp.server.apps import AppConfig
+from pydantic import Field
 import asyncio
 import logging
 
@@ -18,7 +19,7 @@ from ..utils.tushare_api import TushareAPI
 from ..utils.large_data_handler import handle_large_data, merge_large_data_payload, prepare_large_data_view
 from ..utils.ui_hint import attach_hint_to_dict
 from ..utils.artifact_payload import finalize_artifact_result, AS_FILE_INCLUDE_UI_DECISION_GUIDE
-from .constants import READONLY_ANNOTATIONS
+from .constants import INCLUDE_UI_DESCRIPTION, READONLY_ANNOTATIONS
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +207,7 @@ def register_fund_tools(mcp: FastMCP, api: TushareAPI):
         end_date: Optional[str] = None,
         market: Optional[str] = None,
         as_file: bool = False,
-        include_ui: bool = False,
+        include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
     ) -> Dict[str, Any]:
         """获取基金净值时间序列（单位净值、累计净值、调整净值）。
 返回形态（默认）：content.text 内联 markdown 表格 + 结构化数据,无内嵌 UI。
@@ -218,7 +219,6 @@ Args:
     end_date: 结束日期(YYYYMMDD)
     market: E(场内) / O(场外)，可选
     as_file: 为 True 时把完整净值序列写成 .jsonl 文件
-    include_ui: 为 True 时附加交互式净值曲线 UI(默认 False,有可视化需求时才开)
 """ + AS_FILE_INCLUDE_UI_DECISION_GUIDE
         try:
             if not api.is_available():
