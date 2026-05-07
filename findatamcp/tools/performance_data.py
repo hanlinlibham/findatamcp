@@ -22,7 +22,7 @@ def register_performance_tools(mcp: FastMCP, api: TushareAPI):
         code: str = "",
         year: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """获取业绩预告数据（预增/预减/扭亏等）
+        """【业绩预告】获取 A 股业绩预告（预增/预减/扭亏/首亏），披露财报前的盈利信号
 
         Args:
             ts_code: 股票代码，支持 '600519.SH' 或 '600519'（自动补全后缀）
@@ -76,7 +76,7 @@ def register_performance_tools(mcp: FastMCP, api: TushareAPI):
         code: str = "",
         period: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """获取业绩快报数据
+        """【业绩快报】获取 A 股业绩快报数据（正式财报披露前的核心利润表速报）
 
         Args:
             ts_code: 股票代码，支持 '600519.SH' 或 '600519'（自动补全后缀）

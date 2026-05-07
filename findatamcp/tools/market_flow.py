@@ -35,7 +35,7 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
         include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
     ) -> Dict[str, Any]:
         """
-        获取某行业/板块的龙头股列表（按市值排序）
+        【行业龙头】查询白酒/银行/半导体/新能源等行业的龙头股代码列表，按市值降序，"白酒龙头有哪些"专用
 
         解决"白酒行业"、"银行板块"等语义泛化问题。
         优先使用申万行业分类（更精准），fallback到通用行业分类。
@@ -274,7 +274,7 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
         include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
     ) -> Dict[str, Any]:
         """
-        获取龙虎榜数据
+        【龙虎榜】获取每日上榜股票、营业部买卖明细、净买入额，沪深京三市异动追踪
 
         Args:
             trade_date: 交易日期，格式 YYYYMMDD

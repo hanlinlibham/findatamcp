@@ -293,7 +293,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
         include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
     ) -> Dict[str, Any]:
         """
-        获取财务指标与增长分析（聚合工具）
+        【财务+增长】聚合查询 A 股财务指标并计算同比/环比/复合增速等衍生指标，"业绩增长情况"专用
 
         返回原始财务数据，并可计算增长率、复合增速等衍生指标。
 
@@ -517,7 +517,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
         include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
     ) -> Dict[str, Any]:
         """
-        量化分析工具（相关性、贝塔、业绩对比）
+        【相关性分析】计算多只股票的价格相关性矩阵、贝塔系数、区间收益对比，自动对齐
 
         专门处理多只股票的时间序列计算，自动处理数据对齐和缺失值。
 
@@ -847,7 +847,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
         analysis_type: str = "comprehensive"
     ) -> Dict[str, Any]:
         """
-        深度量化分析引擎（企业级）
+        【深度量化】综合技术指标(MA/RSI/MACD)、风险调整收益(Sharpe/Sortino)、回撤、相关性的全能分析
 
         集成技术指标、风险调整收益、相关性分析的全能工具。
 
@@ -1072,7 +1072,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
         include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
     ) -> Dict[str, Any]:
         """
-        计算一组股票的金融指标（相关性矩阵）
+        【指标矩阵】基于价格/成交量/涨跌幅等字段计算多股票的相关系数矩阵
 
         Args:
             stock_codes: 股票代码列表，例如 ["600519.SH", "000858.SZ"]

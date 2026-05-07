@@ -100,7 +100,7 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
         start_date: Optional[str] = None,
         end_date: Optional[str] = None
     ) -> Dict[str, Any]:
-        """获取指数成分股及权重（按权重降序）
+        """【指数成分】获取沪深300/上证50/中证500等指数成分股及权重快照（按权重降序）
 
         Args:
             index_code: 指数代码，如 '000300.SH'(沪深300)、'000016.SH'(上证50)
@@ -158,7 +158,9 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
                 "index_code": index_code
             }
 
-    @mcp.tool(tags={"指数数据"}, annotations=READONLY_ANNOTATIONS, app=SERIES_CHART_APP)
+    @mcp.tool(tags={"指数数据"}, annotations=READONLY_ANNOTATIONS, app=SERIES_CHART_APP,
+        description="【指数估值】获取指数 PE/PB/股息率/换手率/市值时序，支持宽基与申万行业指数估值分析\n返回形态（默认）：content.text 内联 markdown 表格 + 结构化数据,无内嵌 UI。\n设 include_ui=True 才附加交互式估值曲线（ui://findata/series-chart）。\n\nArgs:\n    ts_code: 指数代码，如 '000300.SH'(沪深300)、'801010.SI'(申万农林牧渔)\n    trade_date: 交易日期(YYYYMMDD)\n    start_date: 开始日期(YYYYMMDD)\n    end_date: 结束日期(YYYYMMDD)\n    as_file: 为 True 时把完整估值序列写成 .jsonl 文件\n" + AS_FILE_INCLUDE_UI_DECISION_GUIDE,
+    )
     async def get_index_valuation(
         ts_code: str = "",
         stock_code: str = "",
@@ -169,17 +171,7 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
         as_file: bool = False,
         include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
     ) -> Dict[str, Any]:
-        """获取指数估值数据（PE/PB/换手率/市值，支持宽基和申万指数）。
-返回形态（默认）：content.text 内联 markdown 表格 + 结构化数据,无内嵌 UI。
-设 include_ui=True 才附加交互式估值曲线（ui://findata/series-chart）。
-
-Args:
-    ts_code: 指数代码，如 '000300.SH'(沪深300)、'801010.SI'(申万农林牧渔)
-    trade_date: 交易日期(YYYYMMDD)
-    start_date: 开始日期(YYYYMMDD)
-    end_date: 结束日期(YYYYMMDD)
-    as_file: 为 True 时把完整估值序列写成 .jsonl 文件
-""" + AS_FILE_INCLUDE_UI_DECISION_GUIDE
+        """【指数估值】获取指数 PE/PB/股息率/换手率/市值时序，支持宽基与申万行业指数估值分析"""
         try:
             if not api.is_available():
                 return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
@@ -263,7 +255,7 @@ Args:
         index_code: Optional[str] = None,
         ts_code: Optional[str] = None
     ) -> Dict[str, Any]:
-        """行业分类与成分股查询（申万/中信）
+        """【行业分类】查询申万/中信 L1/L2/L3 行业分类树或行业成分股列表
 
         Args:
             action: 仅支持以下 3 个值（区分大小写）：classify(行业分类列表) / sw_members(申万成分股) / ci_members(中信成分股)。不要传其他值
