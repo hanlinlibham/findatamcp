@@ -11,10 +11,10 @@ structuredContent 字段:
                                              与 rows 同源
 
 四种组合(as_file, include_ui)的差异:
-  F, F (默认)  rows inline,    无 UI 别名,           meta={ui:None}
-  F, T         rows inline,    +data/daily_data,     meta=None
-  T, F         rows=[],path,   无 UI 别名,           meta={ui:None}
-  T, T         rows=[],path,   data=[]/daily_data=[],meta=None
+  F, F (默认)  rows inline,    无 UI 别名
+  F, T         rows inline,    +data/daily_data
+  T, F         rows=[],path,   无 UI 别名
+  T, T         rows=[],path,   data=[]/daily_data=[]
 """
 
 from __future__ import annotations
@@ -134,7 +134,6 @@ def build_artifact_envelope(
 
     内部带下划线字段由 finalize_artifact_result pop 掉,不进 structuredContent:
       _content_text   content[0].text 全文
-      _meta_override  ToolResult.meta(include_ui=False 时 {'ui': None})
     """
     column_names = list(rows[0].keys()) if rows else []
     columns_typed = build_columns_typed(rows, column_names)
@@ -182,7 +181,6 @@ def build_artifact_envelope(
     )
     parts: List[str] = [p for p in (header_text.rstrip() if header_text else "", table_md, trailer) if p]
     fields["_content_text"] = "\n\n".join(parts)
-    fields["_meta_override"] = {"ui": None} if not include_ui else None
     return fields
 
 
@@ -213,9 +211,9 @@ def finalize_artifact_result(
     """统一 envelope 出口,始终返回 ToolResult 以控制 content.text。
 
     流程:
-      1. build_artifact_envelope 生成数据字段 + _content_text + _meta_override
+      1. build_artifact_envelope 生成数据字段 + _content_text
       2. 剥离 _LEGACY_STRUCTURED_KEYS 残留(防御),把 env 字段合入 result
-      3. 包成 ToolResult(content + structuredContent + meta)
+      3. 包成 ToolResult(content + structuredContent)
     """
     env = build_artifact_envelope(
         rows,
@@ -229,7 +227,6 @@ def finalize_artifact_result(
         filename=filename,
     )
     content_text = env.pop("_content_text", "")
-    meta_override = env.pop("_meta_override", None)
 
     for k in _LEGACY_STRUCTURED_KEYS:
         result.pop(k, None)
@@ -238,7 +235,6 @@ def finalize_artifact_result(
     return ToolResult(
         content=[TextContent(type="text", text=content_text)],
         structured_content=result,
-        meta=meta_override,
     )
 
 
