@@ -40,3 +40,6 @@ docs/*-todo-*.md
 
 # Historical scripts (kept locally, not version-controlled)
 legacy/
+
+# Per-deploy status markers (e.g. divergence notes left by ops)
+DEPLOY_STATUS.md
