@@ -367,7 +367,9 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
                 "ts_code": ts_code if 'ts_code' in locals() else None
             }
 
-    @mcp.tool(tags={"行情数据"}, annotations=READONLY_ANNOTATIONS, app=KLINE_CHART_APP)
+    @mcp.tool(tags={"行情数据"}, annotations=READONLY_ANNOTATIONS, app=KLINE_CHART_APP,
+        description='【K线行情】获取股票/指数历史日线走势，含开高低收/成交量/波动率/区间涨跌幅，回答"走势/K线/历史价格"问题首选\n返回形态（默认）：content.text 内联 markdown 表格 + 结构化数据,无内嵌 UI。\n设 include_ui=True 才附加交互式 K 线（ui://findata/kline-chart）。\n\nArgs:\n    ts_code: 股票或指数代码，支持 \'600519.SH\'、\'00700.HK\'、\'AAPL\'、\'399001.SZ\' 等\n    days: 获取天数，默认60，不传 start_date/end_date 时使用\n    start_date: 开始日期(YYYYMMDD)，优先级高于 days\n    end_date: 结束日期(YYYYMMDD)，默认今天\n    include_items: 是否返回每日明细，默认 True\n    max_rows: 明细最大行数，默认30\n    as_file: 为 True 时把完整数据写成 .jsonl 文件，在 structuredContent 里返 path\n    stock_code: ts_code 的别名\n    code: ts_code 的别名\n' + AS_FILE_INCLUDE_UI_DECISION_GUIDE,
+    )
     async def get_historical_data(
         ts_code: str,
         days: int = 60,
@@ -380,21 +382,7 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
         stock_code: Optional[str] = None,  # 兼容旧参数名
         code: Optional[str] = None  # 兼容 code 别名
     ) -> Union[ToolResult, Dict[str, Any]]:
-        """获取证券历史行情数据及统计指标（波动率、区间涨跌幅、价格区间）。
-返回形态（默认）：content.text 内联 markdown 表格 + 结构化数据,无内嵌 UI。
-设 include_ui=True 才附加交互式 K 线（ui://findata/kline-chart）。
-
-Args:
-    ts_code: 股票或指数代码，支持 '600519.SH'、'00700.HK'、'AAPL'、'399001.SZ' 等
-    days: 获取天数，默认60，不传 start_date/end_date 时使用
-    start_date: 开始日期(YYYYMMDD)，优先级高于 days
-    end_date: 结束日期(YYYYMMDD)，默认今天
-    include_items: 是否返回每日明细，默认 True
-    max_rows: 明细最大行数，默认30
-    as_file: 为 True 时把完整数据写成 .jsonl 文件，在 structuredContent 里返 path
-    stock_code: ts_code 的别名
-    code: ts_code 的别名
-""" + AS_FILE_INCLUDE_UI_DECISION_GUIDE
+        """【K线行情】获取股票/指数历史日线走势，含开高低收/成交量/波动率/区间涨跌幅，回答"走势/K线/历史价格"问题首选"""
         try:
             # 兼容旧参数名
             ts_code = ts_code or stock_code or code or ""
@@ -476,7 +464,9 @@ Args:
                 "ts_code": ts_code if 'ts_code' in locals() else None
             }
 
-    @mcp.tool(tags={"行情数据"}, annotations=READONLY_ANNOTATIONS, app=MONEYFLOW_CHART_APP)
+    @mcp.tool(tags={"行情数据"}, annotations=READONLY_ANNOTATIONS, app=MONEYFLOW_CHART_APP,
+        description="【资金流向】获取个股主力/散户净流入金额，含超大单/大单/中单/小单分布与净占比（仅A股）\n返回形态（默认）：content.text 内联 markdown 表格 + 结构化数据,无内嵌 UI。\n设 include_ui=True 才附加交互式资金流向图（ui://findata/moneyflow-chart）。\n\nArgs:\n    ts_code: A股代码，支持 '600519.SH' 或 '600519'\n    start_date: 开始日期(YYYYMMDD)，默认最近30天\n    end_date: 结束日期(YYYYMMDD)，默认今天\n    as_file: 为 True 时把完整数据写成 .jsonl 文件\n    stock_code: ts_code 的别名\n    code: ts_code 的别名\n" + AS_FILE_INCLUDE_UI_DECISION_GUIDE,
+    )
     async def get_moneyflow(
         ts_code: str,
         start_date: Optional[str] = None,
@@ -486,18 +476,7 @@ Args:
         stock_code: Optional[str] = None,  # 兼容旧参数名
         code: Optional[str] = None  # 兼容 code 别名
     ) -> Union[ToolResult, Dict[str, Any]]:
-        """获取个股资金流向（主力/散户净流入，仅A股）。
-返回形态（默认）：content.text 内联 markdown 表格 + 结构化数据,无内嵌 UI。
-设 include_ui=True 才附加交互式资金流向图（ui://findata/moneyflow-chart）。
-
-Args:
-    ts_code: A股代码，支持 '600519.SH' 或 '600519'
-    start_date: 开始日期(YYYYMMDD)，默认最近30天
-    end_date: 结束日期(YYYYMMDD)，默认今天
-    as_file: 为 True 时把完整数据写成 .jsonl 文件
-    stock_code: ts_code 的别名
-    code: ts_code 的别名
-""" + AS_FILE_INCLUDE_UI_DECISION_GUIDE
+        """【资金流向】获取个股主力/散户净流入金额，含超大单/大单/中单/小单分布与净占比（仅A股）"""
         try:
             # 兼容旧参数名
             ts_code = ts_code or stock_code or code or ""

@@ -17,7 +17,7 @@ def register_sector_tools(mcp: FastMCP, api: TushareAPI):
     @mcp.tool(tags={"行业板块"})
     async def analyze_sector(sector: str) -> Dict[str, Any]:
         """
-        对行业板块进行深度分析
+        【行业深度】对指定行业/板块做综合分析：龙头股、估值水平、近期涨跌、资金流向
 
         Args:
             sector: 行业板块名称

@@ -28,7 +28,7 @@ def register_search_tools(mcp: FastMCP, api: TushareAPI, db: EntityStore):
         limit: int = 10
     ) -> Dict[str, Any]:
         """
-        搜索金融实体（股票、基金）- 使用本地数据库
+        【实体搜索】按名称/拼音/代码模糊搜索股票或基金，本地索引秒级返回，"茅台代码是啥"专用
 
         支持多种搜索方式：
         - 拼音首字母：payh -> 平安银行
@@ -95,7 +95,7 @@ def register_search_tools(mcp: FastMCP, api: TushareAPI, db: EntityStore):
     @mcp.tool(tags={"搜索"})
     async def get_entity_by_code(code: str) -> Dict[str, Any]:
         """
-        根据代码精确查询金融实体
+        【代码精查】按完整代码（如 600519.SH）精确返回股票或基金的标准化信息
 
         Args:
             code: 实体代码（支持带后缀如 000001.SZ 或不带后缀如 000001）
@@ -151,7 +151,7 @@ def register_search_tools(mcp: FastMCP, api: TushareAPI, db: EntityStore):
     @mcp.tool(tags={"搜索"})
     async def search_stocks(keyword: str = "", limit: int = 10, query: str = "") -> Dict[str, Any]:
         """
-        搜索股票和指数（根据名称或代码）
+        【股票指数搜索】按名称或代码搜索 A 股/港股/美股股票和主流指数，含别名匹配
 
         支持 A 股、港股、美股、各类指数。
 

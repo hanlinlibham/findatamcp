@@ -26,7 +26,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
         stock_code: str = "",
         code: str = "",
     ) -> Dict[str, Any]:
-        """获取股票核心财务指标（仅支持A股）
+        """【核心财务】一次返回 A 股营收/净利润/总资产/净资产等利润表+资产负债表关键科目
 
         Args:
             ts_code: A股代码，支持 '600519.SH' 或 '600519'（自动补全后缀）。也可用 stock_code 参数名
@@ -111,7 +111,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
     async def get_basic_info(
         ts_code: str,
     ) -> Dict[str, Any]:
-        """获取股票基本信息
+        """【基本信息】获取股票名称/行业/地域/上市日期/市场分类（A股/港股/美股）
 
         支持 A 股、港股、美股。
 
@@ -206,7 +206,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
         stock_code: str = "",
         code: str = "",
     ) -> Dict[str, Any]:
-        """获取利润表数据（仅支持A股）
+        """【利润表】获取 A 股完整利润表科目（营收/营业成本/三费/营业利润/净利润），支持季报/半年报/年报
 
         【数据可用性】period 必须使用已公布的报告期（YYYYMMDD 格式）：
         - 年报(12/31): 次年4月底前披露  - 半年报(06/30): 8月底前披露
@@ -273,7 +273,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
         stock_code: str = "",
         code: str = "",
     ) -> Dict[str, Any]:
-        """获取资产负债表数据（仅支持A股）
+        """【资产负债表】获取 A 股完整资产负债表（流动/非流动资产、负债、所有者权益）按报告期
 
         Args:
             ts_code: A股代码，支持 '600519.SH' 或 '600519'（自动补全后缀）。也可用 stock_code 参数名
@@ -334,7 +334,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
         stock_code: str = "",
         code: str = "",
     ) -> Dict[str, Any]:
-        """获取现金流量表数据（仅支持A股）
+        """【现金流量表】获取 A 股经营/投资/筹资三大现金流活动明细，按报告期
 
         Args:
             ts_code: A股代码，支持 '600519.SH' 或 '600519'（自动补全后缀）。也可用 stock_code 参数名

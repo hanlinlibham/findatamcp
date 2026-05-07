@@ -65,7 +65,7 @@ def register_fund_tools(mcp: FastMCP, api: TushareAPI):
 
     @mcp.tool(tags={"基金数据"}, annotations=READONLY_ANNOTATIONS)
     async def get_fund_data(ts_code: str = "", stock_code: str = "", code: str = "") -> Dict[str, Any]:
-        """获取基金综合信息（基本面、最新净值、基金经理、份额规模）
+        """【基金概览】一次获取基金基本面/最新净值/基金经理/份额规模，"这只基金怎么样"首选
 
         Args:
             ts_code: 基金代码，如 '510300.SH'(沪深300ETF)、'000001.OF'(华夏成长)
@@ -198,7 +198,9 @@ def register_fund_tools(mcp: FastMCP, api: TushareAPI):
         except Exception as e:
             return {"success": False, "error": f"获取基金数据异常: {str(e)}", "ts_code": ts_code}
 
-    @mcp.tool(tags={"基金数据"}, annotations=READONLY_ANNOTATIONS, app=FUND_NAV_CHART_APP)
+    @mcp.tool(tags={"基金数据"}, annotations=READONLY_ANNOTATIONS, app=FUND_NAV_CHART_APP,
+        description="【基金净值】获取基金单位净值/累计净值/调整净值时间序列，画基金净值曲线必备\n返回形态（默认）：content.text 内联 markdown 表格 + 结构化数据,无内嵌 UI。\n设 include_ui=True 才附加交互式净值曲线（ui://findata/fund-nav-chart）。\n\nArgs:\n    ts_code: 基金代码，如 '510300.SH'、'000001.OF'\n    start_date: 开始日期(YYYYMMDD)\n    end_date: 结束日期(YYYYMMDD)\n    market: E(场内) / O(场外)，可选\n    as_file: 为 True 时把完整净值序列写成 .jsonl 文件\n" + AS_FILE_INCLUDE_UI_DECISION_GUIDE,
+    )
     async def get_fund_nav(
         ts_code: str = "",
         stock_code: str = "",
@@ -209,17 +211,7 @@ def register_fund_tools(mcp: FastMCP, api: TushareAPI):
         as_file: bool = False,
         include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
     ) -> Dict[str, Any]:
-        """获取基金净值时间序列（单位净值、累计净值、调整净值）。
-返回形态（默认）：content.text 内联 markdown 表格 + 结构化数据,无内嵌 UI。
-设 include_ui=True 才附加交互式净值曲线（ui://findata/fund-nav-chart）。
-
-Args:
-    ts_code: 基金代码，如 '510300.SH'、'000001.OF'
-    start_date: 开始日期(YYYYMMDD)
-    end_date: 结束日期(YYYYMMDD)
-    market: E(场内) / O(场外)，可选
-    as_file: 为 True 时把完整净值序列写成 .jsonl 文件
-""" + AS_FILE_INCLUDE_UI_DECISION_GUIDE
+        """【基金净值】获取基金单位净值/累计净值/调整净值时间序列，画基金净值曲线必备"""
         try:
             if not api.is_available():
                 return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
@@ -280,7 +272,7 @@ Args:
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """获取基金持仓明细（季度），或反查某股票被哪些基金持有
+        """【基金持仓】获取基金重仓股明细（按季度），或反查某只股票被哪些基金持有
 
         Args:
             ts_code: 基金代码，如 '001753.OF'（查某只基金持仓）
