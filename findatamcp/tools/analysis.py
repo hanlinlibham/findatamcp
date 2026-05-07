@@ -185,7 +185,7 @@ def _metric_panel_from_stats(metric: str, payload: Dict[str, Any]) -> Optional[D
         "categories": [str(item) for item in labels],
         "series": [{"name": series_name, "data": values, "type": chart_type}],
         "yAxis": y_axis,
-        "note": f"分位数 {payload['percentile']}%" if payload.get("percentile") is not None else None,
+        "note": f"分位数 {payload['percentile']:.2f}%" if payload.get("percentile") is not None else None,
     }
 
 
@@ -211,7 +211,7 @@ def _build_financial_metrics_ui(ts_code: str, period: str, calc_type: str, metri
             suffix = "%" if metric in _PERCENT_METRICS or payload.get("cagr") is not None else ""
             note = None
             if payload.get("percentile") is not None:
-                note = f"历史分位 {payload['percentile']}%"
+                note = f"历史分位 {payload['percentile']:.2f}%"
             cards.append({
                 "label": _METRIC_LABELS.get(metric, metric),
                 "value": f"{round(float(latest_value), 2)}{suffix}" if isinstance(latest_value, (int, float, np.floating)) else f"{latest_value}{suffix}",
