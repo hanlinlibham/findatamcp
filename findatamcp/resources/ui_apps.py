@@ -398,6 +398,22 @@ tr:hover td { background: var(--color-row-hover); }
   function render(raw) {
     if (!raw) return;
     var d = raw.data || raw;
+
+    // Guard: when none of the recognized array-bearing fields exist, the
+    // unwrap chain below would fall through to `tableData = [d]` and render
+    // the envelope blob as one fake metadata row. Bail with the unified
+    // message instead. Field set strictly mirrors the unwrap chain.
+    if (!Array.isArray(d) &&
+        !d.results &&
+        !d.items &&
+        !d.stocks &&
+        !d.top_gainers &&
+        !Array.isArray(d.data) &&
+        !Array.isArray(d.preview)) {
+      document.getElementById('app').innerHTML = '<div class="loading">该工具本次未返回图表数据。如需查看交互式图表,请让 AI 重新调用并启用图表渲染。</div>';
+      return;
+    }
+
     if (Array.isArray(d)) tableData = d;
     else if (d.results) tableData = d.results;
     else if (d.items) tableData = d.items;
