@@ -281,7 +281,7 @@ def _build_correlation_ui(title: str, subtitle: str, correlation_matrix: Dict[st
 def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
     """注册高级分析工具"""
 
-    @mcp.tool(tags={"量化分析"}, app=FINANCIAL_METRICS_CHART_APP)
+    @mcp.tool(tags={"量化分析"})
     async def get_financial_metrics(
         ts_code: str = "",
         stock_code: str = "",
@@ -507,7 +507,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                 "ts_code": ts_code if 'ts_code' in locals() else None
             }
 
-    @mcp.tool(tags={"量化分析"}, app=CORRELATION_MATRIX_APP)
+    @mcp.tool(tags={"量化分析"})
     async def analyze_price_correlation(
         stock_codes: List[str],
         start_date: str = None,
@@ -1062,7 +1062,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                 "stock_codes": stock_codes
             }
 
-    @mcp.tool(tags={"量化分析"}, app=CORRELATION_MATRIX_APP)
+    @mcp.tool(tags={"量化分析"})
     async def calculate_metrics(
         stock_codes: List[str],
         start_date: str = None,

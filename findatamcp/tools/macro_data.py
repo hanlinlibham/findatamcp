@@ -100,7 +100,7 @@ def _prepare_series_payload(
 def register_macro_tools(mcp: FastMCP, api: TushareAPI):
     """注册宏观数据工具"""
 
-    @mcp.tool(tags={"宏观数据"}, app=MACRO_PANEL_APP)
+    @mcp.tool(tags={"宏观数据"})
     async def get_macro_summary(
         as_file: bool = False,
         include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
@@ -398,7 +398,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
             logger.error(f"❌ get_macro_summary error: {e}")
             return build_error_response(f"获取宏观数据异常: {str(e)}", ErrorCode.UPSTREAM_ERROR)
 
-    @mcp.tool(tags={"宏观数据"}, app=SERIES_CHART_APP)
+    @mcp.tool(tags={"宏观数据"})
     async def get_gdp_data(
         start_q: Optional[str] = None,
         end_q: Optional[str] = None,
@@ -534,7 +534,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
             logger.error(f"❌ get_gdp_data error: {e}")
             return build_error_response(f"获取GDP数据异常: {str(e)}", ErrorCode.UPSTREAM_ERROR)
 
-    @mcp.tool(tags={"宏观数据"}, app=SERIES_CHART_APP)
+    @mcp.tool(tags={"宏观数据"})
     async def get_cpi_data(
         start_m: Optional[str] = None,
         end_m: Optional[str] = None,
@@ -676,7 +676,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
             logger.error(f"❌ get_cpi_data error: {e}")
             return build_error_response(f"获取CPI数据异常: {str(e)}", ErrorCode.UPSTREAM_ERROR)
 
-    @mcp.tool(tags={"宏观数据"}, app=SERIES_CHART_APP)
+    @mcp.tool(tags={"宏观数据"})
     async def get_pmi_data(
         start_m: Optional[str] = None,
         end_m: Optional[str] = None,
@@ -818,7 +818,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
             logger.error(f"❌ get_pmi_data error: {e}")
             return build_error_response(f"获取PMI数据异常: {str(e)}", ErrorCode.UPSTREAM_ERROR)
 
-    @mcp.tool(tags={"宏观数据"}, app=SERIES_CHART_APP)
+    @mcp.tool(tags={"宏观数据"})
     async def get_money_supply(
         start_m: Optional[str] = None,
         end_m: Optional[str] = None,
@@ -985,7 +985,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
             logger.error(f"❌ get_money_supply error: {e}")
             return build_error_response(f"获取货币供应量异常: {str(e)}", ErrorCode.UPSTREAM_ERROR)
 
-    @mcp.tool(tags={"宏观数据"}, app=SERIES_CHART_APP)
+    @mcp.tool(tags={"宏观数据"})
     async def get_interest_rates(
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
@@ -1151,7 +1151,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
             logger.error(f"❌ get_interest_rates error: {e}")
             return build_error_response(f"获取利率数据异常: {str(e)}", ErrorCode.UPSTREAM_ERROR)
 
-    @mcp.tool(tags={"宏观数据"}, app=SERIES_CHART_APP)
+    @mcp.tool(tags={"宏观数据"})
     async def get_ppi_data(
         start_m: Optional[str] = None,
         end_m: Optional[str] = None,

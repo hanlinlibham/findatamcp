@@ -15,6 +15,12 @@ structuredContent 字段:
   F, T         rows inline,    +data/daily_data
   T, F         rows=[],path,   无 UI 别名
   T, T         rows=[],path,   data=[]/daily_data=[]
+
+per-call UI 绑定:
+  include_ui=True 时,ToolResult.meta = {"ui": {"resourceUri": ui_uri}},
+  对应 wire 上 CallToolResult._meta.ui.resourceUri,前端按此渲染 iframe。
+  tool 注册时不再静态绑定 app=AppConfig(...),tools/list 不带 _meta.ui,
+  iframe 渲染完全由 per-call meta 驱动。
 """
 
 from __future__ import annotations
@@ -232,9 +238,14 @@ def finalize_artifact_result(
         result.pop(k, None)
     result.update(env)
 
+    meta: Optional[Dict[str, Any]] = None
+    if include_ui and ui_uri:
+        meta = {"ui": {"resourceUri": ui_uri}}
+
     return ToolResult(
         content=[TextContent(type="text", text=content_text)],
         structured_content=result,
+        meta=meta,
     )
 
 

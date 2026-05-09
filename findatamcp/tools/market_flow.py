@@ -26,7 +26,7 @@ DATA_TABLE_APP = AppConfig(
 def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
     """注册市场流向工具"""
 
-    @mcp.tool(tags={"行业板块"}, app=DATA_TABLE_APP)
+    @mcp.tool(tags={"行业板块"})
     async def get_sector_top_stocks(
         sector_name: str,
         limit: int = 10,
@@ -266,7 +266,7 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
                 "sector_name": sector_name
             }
 
-    @mcp.tool(tags={"行业板块"}, app=DATA_TABLE_APP)
+    @mcp.tool(tags={"行业板块"})
     async def get_top_list(
         trade_date: str,
         market_type: str = "SH",
