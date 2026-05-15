@@ -25,8 +25,10 @@ from ..utils.ui_hint import append_hint_to_summary
 from ..utils.artifact_payload import finalize_artifact_result, AS_FILE_INCLUDE_UI_DECISION_GUIDE
 from ..utils.symbol_resolver import (
     build_symbol_not_found,
+    is_known_symbol_pattern,
     lookup_by_code,
     lookup_by_name,
+    no_data_in_range_response,
     resolve_input,
     unavailable_response,
 )
@@ -510,6 +512,15 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
                     )
 
                 if df is None or df.empty:
+                    # 区分 "代码不存在" vs "代码有效但窗口内无数据"
+                    if is_known_symbol_pattern(ts_code, api, resolved.get("entry")):
+                        return no_data_in_range_response(
+                            ts_code=ts_code,
+                            original_input=original_input,
+                            start_date=start_date,
+                            end_date=end_date,
+                            entry=resolved.get("entry"),
+                        )
                     return await build_symbol_not_found(ts_code, db, original_input=original_input)
 
                 df = df.sort_values('trade_date')

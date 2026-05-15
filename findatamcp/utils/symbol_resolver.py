@@ -12,6 +12,7 @@
 - COMMON_INDICES: 向后兼容的 name→code 扁平 dict
 """
 
+import re
 from typing import Any, Dict, List, Optional, Set
 
 
@@ -287,6 +288,79 @@ def resolve_input(original_input: str, api) -> Dict[str, Any]:
         "data_source": ds,
         "entry": entry,
         "asset_type_hint": "global_index" if ds == "index_global" else "index",
+    }
+
+
+# 高置信度的交易所代码格式（用来区分 "代码不存在" vs "代码有效但窗口无数据"）
+_A_SHARE_CODE = re.compile(r"^\d{6}\.(SH|SZ)$")
+_HK_STOCK_CODE = re.compile(r"^\d{5}\.HK$")
+_BJ_STOCK_CODE = re.compile(r"^8[3-7]\d{4}\.BJ$")
+
+
+def is_known_symbol_pattern(ts_code: str, api, entry: Optional[Dict[str, Any]] = None) -> bool:
+    """判断 ts_code 是否"看起来就是一个合法的交易所代码"。
+
+    给行情工具区分两种"取数为空"的情况：
+    - True  → 代码格式合规，应该返回 no_data_in_range（让模型调整日期窗口而不是换代码）
+    - False → 代码格式可疑或不识别，应该返回 symbol_not_found（让模型走 resolve_symbol）
+
+    判定来源（任一命中即 True）：
+    - INDEX_ENTRIES 命中（resolved.entry）
+    - is_index_code / is_fund_code 静态规则命中
+    - A 股 6 位数字 .SH/.SZ
+    - 港股 5 位数字 .HK
+    - 北交所股票 8[3-7]xxxx.BJ
+    - 美股纯字母代码（1-5 位，可带 .A/.B 等次类别后缀）
+    """
+    if entry is not None:
+        return True
+    if not ts_code:
+        return False
+    code = ts_code.strip().upper()
+    try:
+        if api.is_index_code(code) or api.is_fund_code(code):
+            return True
+    except Exception:
+        pass
+    if _A_SHARE_CODE.match(code):
+        return True
+    if _HK_STOCK_CODE.match(code):
+        return True
+    if _BJ_STOCK_CODE.match(code):
+        return True
+    base = code.split(".")[0] if "." in code else code
+    # 美股代码：ASCII 字母 1-5 位（防止中文 .isalpha()=True 误判）
+    if base.isascii() and base.isalpha() and 1 <= len(base) <= 5:
+        return True
+    return False
+
+
+def no_data_in_range_response(
+    ts_code: str,
+    original_input: Optional[str],
+    start_date: Optional[str],
+    end_date: Optional[str],
+    entry: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """代码有效、但所请求时间窗口内 tushare 未返数据时的结构化响应。
+
+    与 symbol_not_found 的关键差异：明确告诉模型 ts_code 是对的，问题在日期，
+    避免模型走"换代码 / 再 resolve_symbol"的回路。
+    """
+    name_hint = f"（{entry['name']}）" if entry and entry.get("name") else ""
+    return {
+        "success": False,
+        "error": "no_data_in_range",
+        "ts_code": ts_code,
+        "original_input": original_input,
+        "start_date": start_date,
+        "end_date": end_date,
+        "suggestion": (
+            f"代码 {ts_code}{name_hint} 格式有效，但 {start_date}~{end_date} 窗口内 tushare 未返数据。"
+            "常见原因：窗口在未来 / 全是节假日 / 该标的 list_date 之前 / 已退市。"
+            "请把日期窗口往近期且有交易日的区间移动后重试。"
+            "不要换代码、不要再调 resolve_symbol / search_financial_entity。"
+        ),
     }
 
 

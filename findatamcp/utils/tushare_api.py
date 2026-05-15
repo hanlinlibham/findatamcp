@@ -73,7 +73,7 @@ class TushareAPI:
 
         # 美股：全字母 1-5 位，直接返回（美股无后缀）
         base = code.split('.')[0] if '.' in code else code
-        if base.isalpha() and 1 <= len(base) <= 5:
+        if base.isascii() and base.isalpha() and 1 <= len(base) <= 5:
             return code.upper()
 
         # 如果已经包含市场后缀，直接返回（A 股 / 指数）
@@ -109,7 +109,7 @@ class TushareAPI:
             return "HK"
         # 美股：全字母（1-5位），或 字母.字母 如 BRK.A
         base = code.split('.')[0] if '.' in code else code
-        if base.isalpha() and 1 <= len(base) <= 5:
+        if base.isascii() and base.isalpha() and 1 <= len(base) <= 5:
             return "US"
         return "A"
 
