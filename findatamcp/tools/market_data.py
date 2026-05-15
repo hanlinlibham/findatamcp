@@ -23,7 +23,13 @@ from ..utils.tushare_api import TushareAPI, fetch_daily_data
 from ..utils.large_data_handler import THRESHOLD, handle_large_data, merge_large_data_payload, prepare_large_data_view
 from ..utils.ui_hint import append_hint_to_summary
 from ..utils.artifact_payload import finalize_artifact_result, AS_FILE_INCLUDE_UI_DECISION_GUIDE
-from ..utils.symbol_resolver import build_symbol_not_found, lookup_by_code, lookup_by_name
+from ..utils.symbol_resolver import (
+    build_symbol_not_found,
+    lookup_by_code,
+    lookup_by_name,
+    resolve_input,
+    unavailable_response,
+)
 from .constants import INCLUDE_UI_DESCRIPTION, READONLY_ANNOTATIONS
 
 KLINE_CHART_APP = AppConfig(
@@ -62,28 +68,51 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
         """
         try:
             # 兼容旧参数名
-            ts_code = ts_code or stock_code or code or ""
-            if not ts_code:
+            original_input = ts_code or stock_code or code or ""
+            if not original_input:
                 return {"success": False, "error": "请提供股票代码（参数名: ts_code, stock_code 或 code）"}
-            # 标准化股票代码
-            ts_code = api.normalize_stock_code(ts_code)
+
+            # 统一解析：名称别名 / 港美 index_global / CBA unavailable
+            resolved = resolve_input(original_input, api)
+            ts_code = resolved["ts_code"]
+            _data_source = resolved["data_source"]
+
+            if _data_source == "unavailable":
+                return unavailable_response(resolved)
 
             comprehensive_data = {
                 "ts_code": ts_code,
-                "input_code": ts_code,
+                "input_code": original_input,
                 "collection_time": datetime.now().isoformat(),
                 "data_source": "findata_pro" if api.is_available() else "findata_free",
                 "api_status": "pro" if api.is_available() else "free"
             }
 
-            market = api.get_market(ts_code)
+            market = api.get_market(ts_code) if _data_source != "index_global" else "GLOBAL"
 
-            # 1. 实时行情数据（通过 fetch_daily_data 路由）
+            async def _fetch_global(start_date=None, end_date=None, limit=None):
+                kwargs = {"ts_code": ts_code}
+                if start_date: kwargs["start_date"] = start_date
+                if end_date: kwargs["end_date"] = end_date
+                return await asyncio.to_thread(api.pro.index_global, **kwargs)
+
+            # 1. 实时行情数据
             try:
                 if api.is_available():
-                    df = await fetch_daily_data(cache, api, ts_code, cache_type="realtime", limit=1)
-                    if not df.empty:
-                        latest = df.iloc[0].to_dict()
+                    if _data_source == "index_global":
+                        _end = datetime.now().strftime('%Y%m%d')
+                        _start = (datetime.now() - timedelta(days=10)).strftime('%Y%m%d')
+                        df = await _fetch_global(start_date=_start, end_date=_end)
+                        if df is not None and not df.empty:
+                            df = df.sort_values('trade_date')
+                            latest = df.iloc[-1].to_dict()
+                        else:
+                            latest = None
+                    else:
+                        df = await fetch_daily_data(cache, api, ts_code, cache_type="realtime", limit=1)
+                        latest = df.iloc[0].to_dict() if (df is not None and not df.empty) else None
+
+                    if latest is not None:
                         comprehensive_data["realtime_data"] = {
                             "price": latest.get('close'),
                             "change": latest.get('change'),
@@ -107,20 +136,23 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
             # 短暂延迟，避免API限制
             await asyncio.sleep(0.2)
 
-            # 2. 历史行情数据（60天，通过 fetch_daily_data 路由）
+            # 2. 历史行情数据（60天）
             try:
                 if api.is_available():
                     end_date = datetime.now().strftime('%Y%m%d')
                     start_date = (datetime.now() - timedelta(days=60)).strftime('%Y%m%d')
 
-                    df = await fetch_daily_data(
-                        cache, api, ts_code,
-                        cache_type="daily",
-                        start_date=start_date,
-                        end_date=end_date
-                    )
-                    
-                    if not df.empty:
+                    if _data_source == "index_global":
+                        df = await _fetch_global(start_date=start_date, end_date=end_date)
+                    else:
+                        df = await fetch_daily_data(
+                            cache, api, ts_code,
+                            cache_type="daily",
+                            start_date=start_date,
+                            end_date=end_date
+                        )
+
+                    if df is not None and not df.empty:
                         df = df.sort_values('trade_date')
                         comprehensive_data["daily_data"] = {
                             "data_count": len(df),
@@ -149,7 +181,15 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
             await asyncio.sleep(0.2)
 
             # 3. 基本信息（如果实时数据获取失败）
-            if not comprehensive_data.get("realtime_data") or comprehensive_data["realtime_data"].get("error"):
+            if _data_source == "index_global":
+                _entry = resolved.get("entry") or {}
+                comprehensive_data["basic_info"] = {
+                    "ts_code": ts_code,
+                    "name": _entry.get("name", ts_code),
+                    "category": _entry.get("category"),
+                    "data_source": "index_global",
+                }
+            elif not comprehensive_data.get("realtime_data") or comprehensive_data["realtime_data"].get("error"):
                 try:
                     if api.is_available():
                         if market == "HK":
@@ -189,11 +229,27 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
             # 短暂延迟
             await asyncio.sleep(0.2)
 
-            # 4. 财务数据（仅 A 股支持）
-            if market != "A":
-                comprehensive_data["financial_data"] = {
-                    "note": f"财务数据仅支持A股，当前代码 {ts_code} 为{'港股' if market == 'HK' else '美股'}"
-                }
+            # 4. 财务数据（仅 A 股个股支持；指数 / 港美 跳过）
+            _is_a_stock = (
+                market == "A"
+                and _data_source != "index_global"
+                and not api.is_index_code(ts_code)
+                and not api.is_fund_code(ts_code)
+            )
+            if not _is_a_stock:
+                if _data_source == "index_global":
+                    _note = f"财务数据不适用于指数（{ts_code} 为港美主流指数）"
+                elif api.is_index_code(ts_code):
+                    _note = f"财务数据不适用于指数（{ts_code}）"
+                elif api.is_fund_code(ts_code):
+                    _note = f"财务数据不适用于基金（{ts_code}）"
+                elif market == "HK":
+                    _note = f"财务数据仅支持A股，当前代码 {ts_code} 为港股"
+                elif market == "US":
+                    _note = f"财务数据仅支持A股，当前代码 {ts_code} 为美股"
+                else:
+                    _note = f"财务数据仅支持A股个股，当前代码 {ts_code}"
+                comprehensive_data["financial_data"] = {"note": _note}
             else:
                 try:
                     if api.is_available():
@@ -287,52 +343,82 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
         """
         try:
             # 兼容旧参数名
-            ts_code = ts_code or stock_code or code or ""
-            if not ts_code:
+            original_input = ts_code or stock_code or code or ""
+            if not original_input:
                 return {"success": False, "error": "请提供股票代码（参数名: ts_code, stock_code 或 code）"}
-            ts_code = api.normalize_stock_code(ts_code)
 
-            if api.is_available():
-                df = await fetch_daily_data(cache, api, ts_code, cache_type="realtime", limit=1)
-                if df is not None and not df.empty:
-                    latest = df.iloc[0].to_dict()
-                    data = {
-                        "price": latest.get('close'),
-                        "change": latest.get('change'),
-                        "pct_chg": latest.get('pct_chg'),
-                        "open": latest.get('open'),
-                        "high": latest.get('high'),
-                        "low": latest.get('low'),
-                        "pre_close": latest.get('pre_close'),
-                        "volume": latest.get('vol'),
-                        "amount": latest.get('amount'),
-                        "trade_date": latest.get('trade_date')
-                    }
-                else:
-                    return {
-                        "success": False,
-                        "error": "无最新数据",
-                        "ts_code": ts_code
-                    }
-            else:
+            # 统一解析：名称别名 / 港美 index_global / CBA unavailable
+            resolved = resolve_input(original_input, api)
+            ts_code = resolved["ts_code"]
+            _data_source = resolved["data_source"]
+
+            if _data_source == "unavailable":
+                return unavailable_response(resolved)
+
+            if not api.is_available():
                 return {
                     "success": False,
                     "error": "数据服务不可用（Pro 接口未配置）",
                     "ts_code": ts_code
                 }
 
-            # 计算 asset_type
-            _market = api.get_market(ts_code)
-            if _market == "HK":
-                _asset_type = "hk"
-            elif _market == "US":
-                _asset_type = "us"
-            elif api.is_fund_code(ts_code):
-                _asset_type = "fund"
-            elif api.is_index_code(ts_code):
-                _asset_type = "index"
+            if _data_source == "index_global":
+                # 港美主流指数走 index_global，取近 10 天最后一行
+                _end = datetime.now().strftime('%Y%m%d')
+                _start = (datetime.now() - timedelta(days=10)).strftime('%Y%m%d')
+                df = await asyncio.to_thread(
+                    api.pro.index_global,
+                    ts_code=ts_code,
+                    start_date=_start,
+                    end_date=_end,
+                )
+                if df is not None and not df.empty:
+                    df = df.sort_values('trade_date')
+                    latest = df.iloc[-1].to_dict()
+                else:
+                    latest = None
             else:
-                _asset_type = "stock"
+                df = await fetch_daily_data(cache, api, ts_code, cache_type="realtime", limit=1)
+                latest = df.iloc[0].to_dict() if (df is not None and not df.empty) else None
+
+            if latest is None:
+                return {
+                    "success": False,
+                    "error": "无最新数据",
+                    "ts_code": ts_code,
+                    "original_input": original_input,
+                }
+
+            data = {
+                "price": latest.get('close'),
+                "change": latest.get('change'),
+                "pct_chg": latest.get('pct_chg'),
+                "open": latest.get('open'),
+                "high": latest.get('high'),
+                "low": latest.get('low'),
+                "pre_close": latest.get('pre_close'),
+                "volume": latest.get('vol'),
+                "amount": latest.get('amount'),
+                "trade_date": latest.get('trade_date')
+            }
+
+            # 计算 asset_type
+            if _data_source == "index_global":
+                _asset_type = "global_index"
+            else:
+                _market = api.get_market(ts_code)
+                if _market == "HK":
+                    _asset_type = "hk"
+                elif _market == "US":
+                    _asset_type = "us"
+                elif api.is_fund_code(ts_code):
+                    _asset_type = "fund"
+                elif api.is_index_code(ts_code):
+                    _asset_type = "index"
+                else:
+                    _asset_type = "stock"
+            if resolved.get("asset_type_hint"):
+                _asset_type = resolved["asset_type_hint"]
 
             # Build concise text summary for LLM
             price = data.get("price")
@@ -391,35 +477,13 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
             if not original_input:
                 return {"success": False, "error": "请提供股票代码（参数名: ts_code, stock_code 或 code）"}
 
-            # 优先用常用指数表解析：能命中则跳过 normalize_stock_code，避免把港美/中债代码改坏
-            _entry = lookup_by_name(original_input) or lookup_by_code(original_input)
-            if _entry is not None:
-                ts_code = _entry["code"]
-                _data_source = _entry.get("data_source", "index_daily")
-                _entry_category = _entry.get("category")
-            else:
-                ts_code = api.normalize_stock_code(original_input)
-                _entry_category = None
-                _data_source = "index_daily"
-                # normalize 之后再查一次（normalize 可能补全后缀）
-                _entry = lookup_by_code(ts_code)
-                if _entry is not None:
-                    _data_source = _entry.get("data_source", "index_daily")
-                    _entry_category = _entry.get("category")
+            # 统一解析：名称别名 → INDEX_ENTRIES 命中 → 跳过 normalize；否则 normalize 后再查一次
+            resolved = resolve_input(original_input, api)
+            ts_code = resolved["ts_code"]
+            _data_source = resolved["data_source"]
 
-            # tushare 不提供该数据源（如中债登 CBA*.CS 系列）
             if _data_source == "unavailable":
-                return {
-                    "success": False,
-                    "error": "data_source_unavailable",
-                    "ts_code": ts_code,
-                    "original_input": original_input,
-                    "category": _entry_category,
-                    "suggestion": (
-                        f"{_entry['name']}（{ts_code}）属于{_entry_category}指数，"
-                        "tushare 不提供该数据源。请改用 wind / iFinD / 中债登官方接口。"
-                    ),
-                }
+                return unavailable_response(resolved)
 
             # 获取历史数据
             if api.is_available():
@@ -469,6 +533,9 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
                         _asset_type = "index"
                     else:
                         _asset_type = "stock"
+                # resolved 命中条目时优先用 entry 的语义
+                if resolved.get("asset_type_hint"):
+                    _asset_type = resolved["asset_type_hint"]
 
                 # 扁平 structuredContent —— 数据层只放标识 + 参数 + 时间戳，rows/columns 由 helper 合并
                 structured = {

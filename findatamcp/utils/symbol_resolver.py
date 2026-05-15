@@ -240,6 +240,73 @@ async def resolve_symbol(keyword: str, db, limit: int = 5) -> List[Dict[str, Any
     return out
 
 
+def resolve_input(original_input: str, api) -> Dict[str, Any]:
+    """把用户输入解析为标准 ts_code 并标注数据源路由。
+
+    给多个行情工具（get_historical_data / get_latest_daily_close / get_stock_data 等）
+    共用的统一入口，保证：名称别名 / 港美 index_global / CBA unavailable 行为一致。
+
+    返回字段：
+        - ts_code:          标准代码（INDEX_ENTRIES 命中时取 entry.code，否则 normalize_stock_code 后）
+        - original_input:   用户传入的原始字符串
+        - data_source:      "index_daily" | "index_global" | "unavailable"
+        - entry:            命中的 INDEX_ENTRIES 条目（含 name/category 等元数据），未命中时 None
+        - asset_type_hint:  "index" | "global_index" | None
+    """
+    text = (original_input or "").strip()
+    if not text:
+        return {
+            "ts_code": "",
+            "original_input": original_input,
+            "data_source": "index_daily",
+            "entry": None,
+            "asset_type_hint": None,
+        }
+
+    entry = lookup_by_name(text) or lookup_by_code(text)
+    if entry is None:
+        normalized = api.normalize_stock_code(text)
+        entry = lookup_by_code(normalized)
+        ts_code = entry["code"] if entry is not None else normalized
+    else:
+        ts_code = entry["code"]
+
+    if entry is None:
+        return {
+            "ts_code": ts_code,
+            "original_input": original_input,
+            "data_source": "index_daily",
+            "entry": None,
+            "asset_type_hint": None,
+        }
+
+    ds = entry.get("data_source", "index_daily")
+    return {
+        "ts_code": ts_code,
+        "original_input": original_input,
+        "data_source": ds,
+        "entry": entry,
+        "asset_type_hint": "global_index" if ds == "index_global" else "index",
+    }
+
+
+def unavailable_response(resolved: Dict[str, Any]) -> Dict[str, Any]:
+    """根据 resolve_input 结果生成 data_source_unavailable 错误响应"""
+    entry = resolved.get("entry") or {}
+    return {
+        "success": False,
+        "error": "data_source_unavailable",
+        "ts_code": resolved.get("ts_code"),
+        "original_input": resolved.get("original_input"),
+        "category": entry.get("category"),
+        "suggestion": (
+            f"{entry.get('name', resolved.get('ts_code'))}（{resolved.get('ts_code')}）属于"
+            f"{entry.get('category', '')}指数，tushare 不提供该数据源。"
+            "请改用 wind / iFinD / 中债登官方接口。"
+        ),
+    }
+
+
 async def build_symbol_not_found(
     ts_code: str,
     db,
