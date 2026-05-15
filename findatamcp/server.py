@@ -208,7 +208,7 @@ def create_mcp_server() -> FastMCP:
     logger.info("📦 Registering tools...")
 
     # 注册所有工具
-    register_market_tools(mcp, api)
+    register_market_tools(mcp, api, db)
     register_financial_tools(mcp, api)
     register_performance_tools(mcp, api)
     register_market_flow_tools(mcp, api)

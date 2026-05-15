@@ -18,10 +18,12 @@ from mcp.types import TextContent
 from pydantic import Field
 
 from ..cache import cache
+from ..entity_store import EntityStore
 from ..utils.tushare_api import TushareAPI, fetch_daily_data
 from ..utils.large_data_handler import THRESHOLD, handle_large_data, merge_large_data_payload, prepare_large_data_view
 from ..utils.ui_hint import append_hint_to_summary
 from ..utils.artifact_payload import finalize_artifact_result, AS_FILE_INCLUDE_UI_DECISION_GUIDE
+from ..utils.symbol_resolver import build_symbol_not_found
 from .constants import INCLUDE_UI_DESCRIPTION, READONLY_ANNOTATIONS
 
 KLINE_CHART_APP = AppConfig(
@@ -42,7 +44,7 @@ def _base_price(df):
     return float(df["close"].iloc[0])
 
 
-def register_market_tools(mcp: FastMCP, api: TushareAPI):
+def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStore] = None):
     """注册行情数据工具"""
 
     @mcp.tool(tags={"行情数据"}, annotations=READONLY_ANNOTATIONS)
@@ -385,11 +387,11 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
         """【K线行情】获取股票/指数历史日线走势，含开高低收/成交量/波动率/区间涨跌幅，回答"走势/K线/历史价格"问题首选"""
         try:
             # 兼容旧参数名
-            ts_code = ts_code or stock_code or code or ""
-            if not ts_code:
+            original_input = ts_code or stock_code or code or ""
+            if not original_input:
                 return {"success": False, "error": "请提供股票代码（参数名: ts_code, stock_code 或 code）"}
             # 标准化股票代码
-            ts_code = api.normalize_stock_code(ts_code)
+            ts_code = api.normalize_stock_code(original_input)
 
             # 获取历史数据
             if api.is_available():
@@ -407,7 +409,7 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI):
                 )
 
                 if df is None or df.empty:
-                    return {"success": False, "error": "无历史数据", "ts_code": ts_code}
+                    return await build_symbol_not_found(ts_code, db, original_input=original_input)
 
                 df = df.sort_values('trade_date')
                 full_items = df.to_dict("records")

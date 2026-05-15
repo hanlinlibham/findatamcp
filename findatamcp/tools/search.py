@@ -4,6 +4,7 @@
 - search_financial_entity: 搜索金融实体（使用后端API）
 - get_entity_by_code: 根据代码查询实体
 - search_stocks: 搜索股票（使用金融数据API）
+- resolve_symbol: 名称→标准 ts_code 解析（覆盖常用指数 + A股 + ETF）
 """
 
 from typing import Dict, Any, Optional
@@ -15,10 +16,53 @@ from fastmcp import FastMCP
 from ..config import config
 from ..entity_store import EntityStore
 from ..utils.tushare_api import TushareAPI
+from ..utils.symbol_resolver import resolve_symbol as _resolve_symbol
 
 
 def register_search_tools(mcp: FastMCP, api: TushareAPI, db: EntityStore):
     """注册搜索查询工具"""
+
+    @mcp.tool(tags={"搜索"})
+    async def resolve_symbol(keyword: str, limit: int = 5) -> Dict[str, Any]:
+        """
+        【代码解析】把中文名称/简称/拼音解析为标准 ts_code，覆盖常用指数（中债/中证/恒生等）+ A股 + ETF
+
+        在调用 get_historical_data / get_stock_data 等行情接口前不确定代码时，
+        先用本工具一步解析，避免拿名称当 ts_code 直接传入导致"无历史数据"。
+
+        Args:
+            keyword: 名称/简称/拼音/代码，例如 "中债新综合财富指数"、"中证转债"、"茅台"、"payh"
+            limit: 返回候选数量，默认 5
+
+        Returns:
+            {
+              "success": True,
+              "keyword": "...",
+              "candidates": [
+                {"code": "CBA00301.CS", "name": "中债新综合财富指数", "entity_type": "index"},
+                ...
+              ]
+            }
+
+        Examples:
+            >>> await resolve_symbol("中债新综合财富指数")
+            >>> await resolve_symbol("中证转债")
+            >>> await resolve_symbol("茅台")
+        """
+        try:
+            candidates = await _resolve_symbol(keyword, db, limit=limit)
+            return {
+                "success": True,
+                "keyword": keyword,
+                "candidates": candidates,
+                "timestamp": datetime.now().isoformat(),
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"代码解析异常: {str(e)}",
+                "keyword": keyword,
+            }
 
     @mcp.tool(tags={"搜索"})
     async def search_financial_entity(
