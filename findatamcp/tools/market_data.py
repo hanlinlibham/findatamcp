@@ -23,7 +23,7 @@ from ..utils.tushare_api import TushareAPI, fetch_daily_data
 from ..utils.large_data_handler import THRESHOLD, handle_large_data, merge_large_data_payload, prepare_large_data_view
 from ..utils.ui_hint import append_hint_to_summary
 from ..utils.artifact_payload import finalize_artifact_result, AS_FILE_INCLUDE_UI_DECISION_GUIDE
-from ..utils.symbol_resolver import build_symbol_not_found
+from ..utils.symbol_resolver import build_symbol_not_found, lookup_by_code, lookup_by_name
 from .constants import INCLUDE_UI_DESCRIPTION, READONLY_ANNOTATIONS
 
 KLINE_CHART_APP = AppConfig(
@@ -390,8 +390,36 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
             original_input = ts_code or stock_code or code or ""
             if not original_input:
                 return {"success": False, "error": "请提供股票代码（参数名: ts_code, stock_code 或 code）"}
-            # 标准化股票代码
-            ts_code = api.normalize_stock_code(original_input)
+
+            # 优先用常用指数表解析：能命中则跳过 normalize_stock_code，避免把港美/中债代码改坏
+            _entry = lookup_by_name(original_input) or lookup_by_code(original_input)
+            if _entry is not None:
+                ts_code = _entry["code"]
+                _data_source = _entry.get("data_source", "index_daily")
+                _entry_category = _entry.get("category")
+            else:
+                ts_code = api.normalize_stock_code(original_input)
+                _entry_category = None
+                _data_source = "index_daily"
+                # normalize 之后再查一次（normalize 可能补全后缀）
+                _entry = lookup_by_code(ts_code)
+                if _entry is not None:
+                    _data_source = _entry.get("data_source", "index_daily")
+                    _entry_category = _entry.get("category")
+
+            # tushare 不提供该数据源（如中债登 CBA*.CS 系列）
+            if _data_source == "unavailable":
+                return {
+                    "success": False,
+                    "error": "data_source_unavailable",
+                    "ts_code": ts_code,
+                    "original_input": original_input,
+                    "category": _entry_category,
+                    "suggestion": (
+                        f"{_entry['name']}（{ts_code}）属于{_entry_category}指数，"
+                        "tushare 不提供该数据源。请改用 wind / iFinD / 中债登官方接口。"
+                    ),
+                }
 
             # 获取历史数据
             if api.is_available():
@@ -401,12 +429,21 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
                 if not start_date:
                     start_date = (datetime.now() - timedelta(days=days)).strftime('%Y%m%d')
 
-                df = await fetch_daily_data(
-                    cache, api, ts_code,
-                    cache_type="daily",
-                    start_date=start_date,
-                    end_date=end_date
-                )
+                if _data_source == "index_global":
+                    # 港美主流指数走 index_global 接口（代码无后缀，如 HSI/SPX/IXIC/DJI）
+                    df = await asyncio.to_thread(
+                        api.pro.index_global,
+                        ts_code=ts_code,
+                        start_date=start_date,
+                        end_date=end_date,
+                    )
+                else:
+                    df = await fetch_daily_data(
+                        cache, api, ts_code,
+                        cache_type="daily",
+                        start_date=start_date,
+                        end_date=end_date
+                    )
 
                 if df is None or df.empty:
                     return await build_symbol_not_found(ts_code, db, original_input=original_input)
@@ -420,15 +457,18 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
                 _chg_s = f"+{_chg}%" if _chg >= 0 else f"{_chg}%"
                 _header = f"{ts_code} | {len(df)} 个交易日 | 最新 {_latest}, 区间 {_chg_s}"
 
-                _market = api.get_market(ts_code)
-                if _market == "HK":
-                    _asset_type = "hk"
-                elif _market == "US":
-                    _asset_type = "us"
-                elif api.is_index_code(ts_code):
-                    _asset_type = "index"
+                if _data_source == "index_global":
+                    _asset_type = "global_index"
                 else:
-                    _asset_type = "stock"
+                    _market = api.get_market(ts_code)
+                    if _market == "HK":
+                        _asset_type = "hk"
+                    elif _market == "US":
+                        _asset_type = "us"
+                    elif api.is_index_code(ts_code):
+                        _asset_type = "index"
+                    else:
+                        _asset_type = "stock"
 
                 # 扁平 structuredContent —— 数据层只放标识 + 参数 + 时间戳，rows/columns 由 helper 合并
                 structured = {
