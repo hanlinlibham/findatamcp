@@ -103,11 +103,25 @@ def build_content_trailer(
     if ui_uri and include_ui:
         lines.append(f"📊 UI 已同步渲染（{ui_uri}）。")
     if path:
-        lines.append(f"📁 完整 {row_count} 行数据已写入 {path}。")
+        # path 是 artifact identifier(由 data_id 派生),不是主 agent sandbox
+        # 的真实 fs 路径——findata 把文件写到自己进程的 /tmp/findatamcp_data/,
+        # 主 agent 沙箱无法直读。不要在 trailer 里暗示 "execute / read_file
+        # 可读这个路径"。
+        lines.append(
+            f"📁 完整 {row_count} 行数据已存为 artifact「{path}」(findata 内部存储)。"
+        )
         if include_ui:
-            lines.append("用户可在 artifact 面板打开此文件交互查看；你也可以用 execute 读此文件做进一步分析。")
+            lines.append(
+                "用户可在 artifact 面板交互查看。**不要 read_file / execute 读这个路径**——"
+                "它是 artifact 标识,不是你 sandbox 里的文件。需要对完整数据做处理时,"
+                "用 as_file=False 重新调用本工具拿 inline rows,或在 execute 里用 download_urls 下载。"
+            )
         else:
-            lines.append("无内嵌 UI。你可以用 execute + matplotlib/plotly 绘图，或直接让用户在 artifact 面板查看此文件。")
+            lines.append(
+                "**不要 read_file / execute 读这个路径**——它是 artifact 标识,不是你 sandbox 里的文件。"
+                "需要对完整数据做处理时,用 as_file=False 重新调用本工具拿 inline rows,"
+                "或在 execute 里用 download_urls 下载。"
+            )
     elif row_count == 0:
         lines.append("无数据。")
     elif row_count > rows_shown:
