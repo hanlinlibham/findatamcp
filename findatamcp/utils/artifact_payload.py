@@ -34,6 +34,12 @@ from mcp.types import TextContent
 from ..cache.data_file_store import data_file_store, infer_schema
 
 
+# as_file=True 时仍内联前 N 行,让调用方能做 schema 探测 / 小样本决策,
+# 不必为"看一眼数据"再触发一次 as_file=False 重取。
+# N=20 是 prompt 预算与可用性的平衡:fan-out 5 worker × 20 行 ≈ ~5K tokens。
+INLINE_PREVIEW_LIMIT = 20
+
+
 def _safe_name(s: str) -> str:
     return re.sub(r"[^0-9A-Za-z_.-]", "_", s).strip("_.") or "data"
 
@@ -96,6 +102,8 @@ def build_content_trailer(
     row_count: int,
     rows_shown: int,
     path: Optional[str],
+    data_id: Optional[str],
+    rows_inlined: int,
     include_ui: bool,
 ) -> str:
     """content.text 尾部引导文案。不引用 structuredContent 字段路径。"""
@@ -103,25 +111,26 @@ def build_content_trailer(
     if ui_uri and include_ui:
         lines.append(f"📊 UI 已同步渲染（{ui_uri}）。")
     if path:
-        # path 是 artifact identifier(由 data_id 派生),不是主 agent sandbox
-        # 的真实 fs 路径——findata 把文件写到自己进程的 /tmp/findatamcp_data/,
-        # 主 agent 沙箱无法直读。不要在 trailer 里暗示 "execute / read_file
-        # 可读这个路径"。
+        # path / data_id 是 findata 内部 artifact 标识,findata 把文件写到自己
+        # 进程的 /tmp/findatamcp_data/,主 agent 的 sandbox 既不能 read_file
+        # 也不能 curl download_urls(--network none)。trailer 必须显式禁止两条
+        # 错误路径,并指明可用替代。
         lines.append(
-            f"📁 完整 {row_count} 行数据已存为 artifact「{path}」(findata 内部存储)。"
+            f"📁 完整 {row_count} 行已存为 findata 内部 artifact（id={data_id}）。"
         )
-        if include_ui:
+        if rows_inlined > 0:
             lines.append(
-                "用户可在 artifact 面板交互查看。**不要 read_file / execute 读这个路径**——"
-                "它是 artifact 标识,不是你 sandbox 里的文件。需要对完整数据做处理时,"
-                "用 as_file=False 重新调用本工具拿 inline rows,或在 execute 里用 download_urls 下载。"
+                f"structured rows 字段含前 {rows_inlined} 行预览,够 schema 探测 / 小样本决策。"
             )
-        else:
-            lines.append(
-                "**不要 read_file / execute 读这个路径**——它是 artifact 标识,不是你 sandbox 里的文件。"
-                "需要对完整数据做处理时,用 as_file=False 重新调用本工具拿 inline rows,"
-                "或在 execute 里用 download_urls 下载。"
-            )
+        lines.append(
+            "需要全量数据做后续处理 → dispatch_worker('data-fetcher', ...) 让 worker 重新拉。"
+        )
+        lines.append(
+            "**不要 read_file / execute 读 path**——它是 artifact 标识,不在 sandbox 里。"
+        )
+        lines.append(
+            "**不要 curl download_urls**——sandbox 是 --network none,URL 只供前端面板用。"
+        )
     elif row_count == 0:
         lines.append("无数据。")
     elif row_count > rows_shown:
@@ -159,9 +168,12 @@ def build_artifact_envelope(
     columns_typed = build_columns_typed(rows, column_names)
     row_count = len(rows)
 
-    # 统一决定 inline 数据载体:as_file 时为 [],否则等于 rows。
+    # 统一决定 inline 数据载体:as_file 时保留前 INLINE_PREVIEW_LIMIT 行作预览
+    # (旧版本是 [] —— 强迫调用方再发一次 as_file=False 才能看数据,UX 差)。
     # 三个字段(rows/data/daily_data.items)共用同一引用,序列化时各自一份副本。
-    payload: List[Dict[str, Any]] = [] if as_file else list(rows)
+    payload: List[Dict[str, Any]] = (
+        list(rows[:INLINE_PREVIEW_LIMIT]) if as_file else list(rows)
+    )
 
     fields: Dict[str, Any] = {
         "row_count": row_count,
@@ -183,11 +195,17 @@ def build_artifact_envelope(
                 pass
 
     path: Optional[str] = None
+    data_id: Optional[str] = None
     if as_file and rows:
         meta = data_file_store.store(rows, tool_name, query_params)
         urls = data_file_store.get_download_urls(meta.data_id)
         semantic = filename or build_semantic_filename(tool_name, query_params)
         path = f"/workspace/{semantic}"
+        data_id = meta.data_id
+        # data_id 顶层暴露:opaque artifact 标识,为后续 agent-side resolver
+        # (主 agent 通过 MCP 把 data_id 换成 sandbox 内可读路径)铺路。
+        # path 字段值保留 (前端 artifact 面板兼容),不破坏。
+        fields["data_id"] = data_id
         fields["path"] = path
         fields["download_urls"] = urls
 
@@ -197,6 +215,8 @@ def build_artifact_envelope(
         row_count=row_count,
         rows_shown=min(row_count, max_rows_in_text),
         path=path,
+        data_id=data_id,
+        rows_inlined=len(payload) if as_file else 0,
         include_ui=include_ui,
     )
     parts: List[str] = [p for p in (header_text.rstrip() if header_text else "", table_md, trailer) if p]
