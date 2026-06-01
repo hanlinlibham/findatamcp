@@ -115,31 +115,32 @@ def register_search_tools(mcp: FastMCP, api: TushareAPI, db: EntityStore):
                 limit=min(limit, 100)  # 限制最大值
             )
 
-            return {
+            result = {
                 "success": True,
                 "total": len(entities),
                 "entities": entities,
                 "query": keyword,
                 "timestamp": datetime.now().isoformat()
             }
+            return attach_next_steps(result, "search_financial_entity")
         except httpx.TimeoutException:
-            return {
-                "success": False,
-                "error": "请求超时，后端服务可能未启动",
-                "keyword": keyword
-            }
+            return build_error_response(
+                error="请求超时，后端服务可能未启动",
+                error_code=ErrorCode.TIMEOUT,
+                data={"keyword": keyword},
+            )
         except httpx.ConnectError:
-            return {
-                "success": False,
-                "error": f"无法连接到后端服务: {config.BACKEND_API_URL}",
-                "keyword": keyword
-            }
+            return build_error_response(
+                error=f"无法连接到后端服务: {config.BACKEND_API_URL}",
+                error_code=ErrorCode.UPSTREAM_ERROR,
+                data={"keyword": keyword},
+            )
         except Exception as e:
-            return {
-                "success": False,
-                "error": f"搜索异常: {str(e)}",
-                "keyword": keyword
-            }
+            return build_error_response(
+                error=f"搜索异常: {str(e)}",
+                error_code=ErrorCode.UPSTREAM_ERROR,
+                data={"keyword": keyword},
+            )
 
     @mcp.tool(tags={"搜索"})
     async def get_entity_by_code(code: str) -> Dict[str, Any]:
@@ -167,35 +168,36 @@ def register_search_tools(mcp: FastMCP, api: TushareAPI, db: EntityStore):
             entity = await db.get_entity_by_code(code)
 
             if entity:
-                return {
+                result = {
                     "success": True,
                     "entity": entity,
                     "timestamp": datetime.now().isoformat()
                 }
+                return attach_next_steps(result, "get_entity_by_code")
             else:
-                return {
-                    "success": False,
-                    "error": f"未找到代码为 {code} 的实体",
-                    "code": code
-                }
+                return build_error_response(
+                    error=f"未找到代码为 {code} 的实体",
+                    error_code=ErrorCode.NO_DATA,
+                    data={"code": code},
+                )
         except httpx.TimeoutException:
-            return {
-                "success": False,
-                "error": "请求超时，后端服务可能未启动",
-                "code": code
-            }
+            return build_error_response(
+                error="请求超时，后端服务可能未启动",
+                error_code=ErrorCode.TIMEOUT,
+                data={"code": code},
+            )
         except httpx.ConnectError:
-            return {
-                "success": False,
-                "error": f"无法连接到后端服务: {config.BACKEND_API_URL}",
-                "code": code
-            }
+            return build_error_response(
+                error=f"无法连接到后端服务: {config.BACKEND_API_URL}",
+                error_code=ErrorCode.UPSTREAM_ERROR,
+                data={"code": code},
+            )
         except Exception as e:
-            return {
-                "success": False,
-                "error": f"查询异常: {str(e)}",
-                "code": code
-            }
+            return build_error_response(
+                error=f"查询异常: {str(e)}",
+                error_code=ErrorCode.UPSTREAM_ERROR,
+                data={"code": code},
+            )
 
     @mcp.tool(tags={"搜索"})
     async def search_stocks(keyword: str = "", limit: int = 10, query: str = "") -> Dict[str, Any]:
@@ -223,14 +225,17 @@ def register_search_tools(mcp: FastMCP, api: TushareAPI, db: EntityStore):
             # 兼容 query 别名
             keyword = keyword or query
             if not keyword:
-                return {"success": False, "error": "请提供搜索关键词（参数名: keyword 或 query）"}
+                return build_error_response(
+                    error="请提供搜索关键词（参数名: keyword 或 query）",
+                    error_code=ErrorCode.MISSING_PARAM,
+                )
 
             if not api.is_available():
-                return {
-                    "success": False,
-                    "error": "需要 Pro 数据权限",
-                    "keyword": keyword
-                }
+                return build_error_response(
+                    error="需要 Pro 数据权限",
+                    error_code=ErrorCode.PRO_REQUIRED,
+                    data={"keyword": keyword},
+                )
 
             # 搜索 A 股
             df = api.pro.stock_basic(
@@ -318,7 +323,7 @@ def register_search_tools(mcp: FastMCP, api: TushareAPI, db: EntityStore):
 
             total_count = len(stock_results) + len(index_results) + len(hk_results) + len(us_results)
             if total_count > 0:
-                return {
+                result = {
                     "success": True,
                     "keyword": keyword,
                     "count": total_count,
@@ -328,15 +333,16 @@ def register_search_tools(mcp: FastMCP, api: TushareAPI, db: EntityStore):
                     "us_stocks": us_results,
                     "timestamp": datetime.now().isoformat()
                 }
+                return attach_next_steps(result, "search_stocks")
             else:
-                return {
-                    "success": False,
-                    "error": "未找到匹配的股票或指数",
-                    "keyword": keyword
-                }
+                return build_error_response(
+                    error="未找到匹配的股票或指数",
+                    error_code=ErrorCode.NO_DATA,
+                    data={"keyword": keyword},
+                )
         except Exception as e:
-            return {
-                "success": False,
-                "error": f"搜索异常: {str(e)}",
-                "keyword": keyword
-            }
+            return build_error_response(
+                error=f"搜索异常: {str(e)}",
+                error_code=ErrorCode.UPSTREAM_ERROR,
+                data={"keyword": keyword},
+            )

@@ -15,6 +15,9 @@ from ..cache import cache
 from ..utils.tushare_api import TushareAPI
 from ..utils.ui_hint import attach_hint_to_dict, build_ui_hint as build_ui_hint_local
 from ..utils.artifact_payload import finalize_artifact_result, AS_FILE_INCLUDE_UI_DECISION_GUIDE
+from ..utils.response import build_error_response
+from ..utils.errors import ErrorCode
+from .routing import attach_next_steps
 from .constants import INCLUDE_UI_DESCRIPTION
 
 DATA_TABLE_APP = AppConfig(
@@ -58,7 +61,7 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
         """
         try:
             if not api.is_available():
-                return {"success": False, "error": "Pro data access required"}
+                return build_error_response("Pro data access required", ErrorCode.PRO_REQUIRED)
 
             # ===== 第1步：获取行业股票列表 =====
             target_codes = []
@@ -119,7 +122,7 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
                 )
 
                 if df_basic.empty:
-                    return {"success": False, "error": "无法获取股票基础数据"}
+                    return build_error_response("无法获取股票基础数据", ErrorCode.NO_DATA)
 
                 # 模糊匹配行业名称
                 sector_mask = df_basic['industry'].str.contains(sector_name, case=False, na=False)
@@ -131,12 +134,13 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
                     sector_stocks = df_basic[name_mask]
 
                     if sector_stocks.empty:
-                        return {
-                            "success": False,
-                            "error": f"未找到包含 '{sector_name}' 的板块。建议：\n"
-                                    f"1. 尝试更通用名称（如'酒'而不是'高端白酒'）\n"
-                                    f"2. 标准行业名称：白酒、银行、半导体、新能源"
-                        }
+                        return build_error_response(
+                            error=f"未找到包含 '{sector_name}' 的板块。建议：\n"
+                                  f"1. 尝试更通用名称（如'酒'而不是'高端白酒'）\n"
+                                  f"2. 标准行业名称：白酒、银行、半导体、新能源",
+                            error_code=ErrorCode.INVALID_SECTOR,
+                            data={"sector_name": sector_name},
+                        )
 
                 target_codes = sector_stocks['ts_code'].tolist()
                 data_source = "通用行业分类"
@@ -187,11 +191,11 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
                     await asyncio.sleep(0.1)
 
             if not all_mv_data:
-                return {
-                    "success": False,
-                    "error": f"无法获取任何股票的市值数据（{len(failed_codes)}只失败）",
-                    "sector": sector_name
-                }
+                return build_error_response(
+                    error=f"无法获取任何股票的市值数据（{len(failed_codes)}只失败）",
+                    error_code=ErrorCode.NO_DATA,
+                    data={"sector": sector_name},
+                )
 
             # 合并数据
             import pandas as pd
@@ -248,6 +252,7 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
                 }
             }
             _header = f"{sector_name} 行业龙头 | {data_source} | 前 {len(result_list)} 只"
+            _sector_result = attach_next_steps(_sector_result, "get_sector_top_stocks")
             return finalize_artifact_result(
                 rows=result_list,
                 result=_sector_result,
@@ -260,11 +265,11 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
             )
 
         except Exception as e:
-            return {
-                "success": False,
-                "error": f"获取行业龙头股异常: {str(e)}",
-                "sector_name": sector_name
-            }
+            return build_error_response(
+                error=f"获取行业龙头股异常: {str(e)}",
+                error_code=ErrorCode.UPSTREAM_ERROR,
+                data={"sector_name": sector_name},
+            )
 
     @mcp.tool(tags={"行业板块"})
     async def get_top_list(
@@ -302,12 +307,16 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
         """
         try:
             if not api.is_available():
-                return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
+                return build_error_response("数据服务不可用（Pro 接口未配置）", ErrorCode.PRO_REQUIRED)
 
             df = api.pro.top_list(trade_date=trade_date)
 
             if df.empty:
-                return {"success": False, "error": "未找到龙虎榜数据", "trade_date": trade_date}
+                return build_error_response(
+                    error="未找到龙虎榜数据",
+                    error_code=ErrorCode.NO_DATA,
+                    data={"trade_date": trade_date},
+                )
 
             # 筛选市场
             if market_type:
@@ -316,14 +325,16 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
             data = df.to_dict('records')
 
             _header = f"龙虎榜 {trade_date} | {market_type}市场 | {len(data)} 条"
+            _top_result = {
+                "success": True,
+                "trade_date": trade_date,
+                "market_type": market_type,
+                "timestamp": datetime.now().isoformat(),
+            }
+            _top_result = attach_next_steps(_top_result, "get_top_list")
             return finalize_artifact_result(
                 rows=data,
-                result={
-                    "success": True,
-                    "trade_date": trade_date,
-                    "market_type": market_type,
-                    "timestamp": datetime.now().isoformat(),
-                },
+                result=_top_result,
                 tool_name="get_top_list",
                 query_params={"trade_date": trade_date, "market_type": market_type},
                 ui_uri="ui://findata/data-table",
@@ -332,8 +343,8 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
                 include_ui=include_ui,
             )
         except Exception as e:
-            return {
-                "success": False,
-                "error": f"获取龙虎榜数据异常: {str(e)}",
-                "trade_date": trade_date
-            }
+            return build_error_response(
+                error=f"获取龙虎榜数据异常: {str(e)}",
+                error_code=ErrorCode.UPSTREAM_ERROR,
+                data={"trade_date": trade_date},
+            )

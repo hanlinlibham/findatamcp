@@ -33,6 +33,9 @@ from ..utils.symbol_resolver import (
     unavailable_response,
 )
 from .constants import INCLUDE_UI_DESCRIPTION, READONLY_ANNOTATIONS
+from .routing import attach_next_steps
+from ..utils.response import build_error_response
+from ..utils.errors import ErrorCode
 
 KLINE_CHART_APP = AppConfig(
     resource_uri="ui://findata/kline-chart",
@@ -72,7 +75,10 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
             # 兼容旧参数名
             original_input = ts_code or stock_code or code or ""
             if not original_input:
-                return {"success": False, "error": "请提供股票代码（参数名: ts_code, stock_code 或 code）"}
+                return build_error_response(
+                    error="请提供股票代码（参数名: ts_code, stock_code 或 code）",
+                    error_code=ErrorCode.MISSING_PARAM,
+                )
 
             # 统一解析：名称别名 / 港美 index_global / CBA unavailable
             resolved = resolve_input(original_input, api)
@@ -309,19 +315,19 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
             )
 
             if has_valid_data:
-                return {
+                result = {
                     "success": True,
                     "ts_code": ts_code,
                     "data": comprehensive_data,
                     "timestamp": datetime.now().isoformat()
                 }
+                return attach_next_steps(result, "get_stock_data")
             else:
-                return {
-                    "success": False,
-                    "error": "无法获取任何有效数据",
-                    "ts_code": ts_code,
-                    "data": comprehensive_data
-                }
+                return build_error_response(
+                    error="无法获取任何有效数据",
+                    error_code=ErrorCode.NO_DATA,
+                    data={"ts_code": ts_code, "data": comprehensive_data},
+                )
 
         except Exception as e:
             return {
@@ -347,7 +353,10 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
             # 兼容旧参数名
             original_input = ts_code or stock_code or code or ""
             if not original_input:
-                return {"success": False, "error": "请提供股票代码（参数名: ts_code, stock_code 或 code）"}
+                return build_error_response(
+                    error="请提供股票代码（参数名: ts_code, stock_code 或 code）",
+                    error_code=ErrorCode.MISSING_PARAM,
+                )
 
             # 统一解析：名称别名 / 港美 index_global / CBA unavailable
             resolved = resolve_input(original_input, api)
@@ -358,11 +367,11 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
                 return unavailable_response(resolved)
 
             if not api.is_available():
-                return {
-                    "success": False,
-                    "error": "数据服务不可用（Pro 接口未配置）",
-                    "ts_code": ts_code
-                }
+                return build_error_response(
+                    error="数据服务不可用（Pro 接口未配置）",
+                    error_code=ErrorCode.PRO_REQUIRED,
+                    data={"ts_code": ts_code},
+                )
 
             if _data_source == "index_global":
                 # 港美主流指数走 index_global，取近 10 天最后一行
@@ -384,12 +393,11 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
                 latest = df.iloc[0].to_dict() if (df is not None and not df.empty) else None
 
             if latest is None:
-                return {
-                    "success": False,
-                    "error": "无最新数据",
-                    "ts_code": ts_code,
-                    "original_input": original_input,
-                }
+                return build_error_response(
+                    error="无最新数据",
+                    error_code=ErrorCode.NO_DATA,
+                    data={"ts_code": ts_code, "original_input": original_input},
+                )
 
             data = {
                 "price": latest.get('close'),
@@ -445,6 +453,8 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
                 "timestamp": datetime.now().isoformat()
             }
 
+            structured = attach_next_steps(structured, "get_latest_daily_close")
+
             return ToolResult(
                 content=[TextContent(type="text", text=summary)],
                 structured_content=structured,
@@ -477,7 +487,10 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
             # 兼容旧参数名
             original_input = ts_code or stock_code or code or ""
             if not original_input:
-                return {"success": False, "error": "请提供股票代码（参数名: ts_code, stock_code 或 code）"}
+                return build_error_response(
+                    error="请提供股票代码（参数名: ts_code, stock_code 或 code）",
+                    error_code=ErrorCode.MISSING_PARAM,
+                )
 
             # 统一解析：名称别名 → INDEX_ENTRIES 命中 → 跳过 normalize；否则 normalize 后再查一次
             resolved = resolve_input(original_input, api)
@@ -559,6 +572,8 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
                     "timestamp": datetime.now().isoformat(),
                 }
 
+                structured = attach_next_steps(structured, "get_historical_data")
+
                 return finalize_artifact_result(
                     rows=full_items,
                     result=structured,
@@ -576,7 +591,11 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
                     max_rows_in_text=min(max_rows, 10),
                 )
             else:
-                return {"success": False, "error": "数据服务不可用（Pro 接口未配置）", "ts_code": ts_code}
+                return build_error_response(
+                    error="数据服务不可用（Pro 接口未配置）",
+                    error_code=ErrorCode.PRO_REQUIRED,
+                    data={"ts_code": ts_code},
+                )
         except Exception as e:
             return {
                 "success": False,

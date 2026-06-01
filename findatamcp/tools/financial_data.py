@@ -15,6 +15,9 @@ from fastmcp import FastMCP
 
 from ..cache import cache
 from ..utils.tushare_api import TushareAPI
+from ..utils.response import build_error_response
+from ..utils.errors import ErrorCode
+from .routing import attach_next_steps
 
 
 def register_financial_tools(mcp: FastMCP, api: TushareAPI):
@@ -39,16 +42,26 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
             # 兼容参数别名
             ts_code = ts_code or stock_code or code
             if not ts_code:
-                return {"success": False, "error": "请提供股票代码（参数名: ts_code, stock_code 或 code）"}
+                return build_error_response(
+                    error="请提供股票代码（参数名: ts_code, stock_code 或 code）",
+                    error_code=ErrorCode.MISSING_PARAM,
+                )
             ts_code = api.normalize_stock_code(ts_code)
 
             # 财务数据仅支持 A 股
             _market = api.get_market(ts_code)
             if _market != "A":
-                return {"success": False, "error": f"财务数据仅支持A股，当前代码 {ts_code} 为{'港股' if _market == 'HK' else '美股'}"}
+                return build_error_response(
+                    error=f"财务数据仅支持A股，当前代码 {ts_code} 为{'港股' if _market == 'HK' else '美股'}",
+                    error_code=ErrorCode.INVALID_STOCK_CODE,
+                    data={"ts_code": ts_code},
+                )
 
             if not api.is_available():
-                return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
+                return build_error_response(
+                    error="数据服务不可用（Pro 接口未配置）",
+                    error_code=ErrorCode.PRO_REQUIRED,
+                )
 
             financial_data = {}
 
@@ -88,18 +101,19 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
                 }
 
             if financial_data:
-                return {
+                result = {
                     "success": True,
                     "ts_code": ts_code,
                     "financial_data": financial_data,
                     "timestamp": datetime.now().isoformat()
                 }
+                return attach_next_steps(result, "get_financial_indicators")
             else:
-                return {
-                    "success": False,
-                    "error": "未找到财务数据",
-                    "ts_code": ts_code
-                }
+                return build_error_response(
+                    error="未找到财务数据",
+                    error_code=ErrorCode.NO_DATA,
+                    data={"ts_code": ts_code},
+                )
         except Exception as e:
             return {
                 "success": False,
@@ -125,11 +139,17 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
             # 兼容参数别名
             ts_code = ts_code or stock_code or code
             if not ts_code:
-                return {"success": False, "error": "请提供股票代码（参数名: ts_code, stock_code 或 code）"}
+                return build_error_response(
+                    error="请提供股票代码（参数名: ts_code, stock_code 或 code）",
+                    error_code=ErrorCode.MISSING_PARAM,
+                )
             ts_code = api.normalize_stock_code(ts_code)
 
             if not api.is_available():
-                return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
+                return build_error_response(
+                    error="数据服务不可用（Pro 接口未配置）",
+                    error_code=ErrorCode.PRO_REQUIRED,
+                )
 
             _market = api.get_market(ts_code)
 
@@ -179,18 +199,19 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
                             'introduction': company_info.get('introduction', '')
                         })
 
-                return {
+                result = {
                     "success": True,
                     "ts_code": ts_code,
                     "basic_info": basic_info,
                     "timestamp": datetime.now().isoformat()
                 }
+                return attach_next_steps(result, "get_basic_info")
             else:
-                return {
-                    "success": False,
-                    "error": "未找到股票基本信息",
-                    "ts_code": ts_code
-                }
+                return build_error_response(
+                    error="未找到股票基本信息",
+                    error_code=ErrorCode.SYMBOL_NOT_FOUND,
+                    data={"ts_code": ts_code},
+                )
         except Exception as e:
             return {
                 "success": False,
