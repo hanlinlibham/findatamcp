@@ -37,6 +37,21 @@ def register_meta_tools(mcp: FastMCP, api: TushareAPI):
     """注册元数据和导航工具"""
 
     @mcp.tool(tags={"元数据", "导航"}, annotations=READONLY_ANNOTATIONS)
+    async def get_routing_map(tool_name: str = "") -> Dict[str, Any]:
+        """【路由地图】查"从某工具出来下一步该调谁"——工具间的自描述调用图。
+
+        比 get_tool_manifest 更进一步：manifest 只列工具清单，本工具给出
+        工具之间靠实体(ts_code/codes/sector/index_code)连接的有向边，
+        让你无需常驻全部工具描述即可规划调用链。
+
+        Args:
+            tool_name: 指定工具名则只返回它的出边(produces/consumes/next_steps)；
+                       留空返回全图 + 实体流概览。
+        """
+        from .routing import get_routing_map_data
+        return get_routing_map_data(tool_name or None)
+
+    @mcp.tool(tags={"元数据", "导航"}, annotations=READONLY_ANNOTATIONS)
     async def get_tool_manifest() -> Dict[str, Any]:
         """返回所有已注册工具的完整清单（按分类分组，不受 visibility 影响）"""
         # 使用 _list_tools 绕过 visibility，获取全部工具
@@ -46,7 +61,7 @@ def register_meta_tools(mcp: FastMCP, api: TushareAPI):
         categorized: Dict[str, list] = {}
         for tool in tools:
             # 跳过导航工具自身
-            if tool.name in ("get_tool_manifest", "focus_category", "show_all_tools"):
+            if tool.name in ("get_tool_manifest", "focus_category", "show_all_tools", "get_routing_map"):
                 continue
 
             tags = getattr(tool, "tags", None) or set()

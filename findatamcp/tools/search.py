@@ -17,6 +17,9 @@ from ..config import config
 from ..entity_store import EntityStore
 from ..utils.tushare_api import TushareAPI
 from ..utils.symbol_resolver import resolve_symbol as _resolve_symbol
+from ..utils.response import build_error_response
+from ..utils.errors import ErrorCode
+from .routing import attach_next_steps
 
 
 def register_search_tools(mcp: FastMCP, api: TushareAPI, db: EntityStore):
@@ -51,18 +54,20 @@ def register_search_tools(mcp: FastMCP, api: TushareAPI, db: EntityStore):
         """
         try:
             candidates = await _resolve_symbol(keyword, db, limit=limit)
-            return {
+            result = {
                 "success": True,
                 "keyword": keyword,
                 "candidates": candidates,
                 "timestamp": datetime.now().isoformat(),
             }
+            # 注入 next_steps 路标：把 candidates[0].code 预填进下游行情/财务工具
+            return attach_next_steps(result, "resolve_symbol")
         except Exception as e:
-            return {
-                "success": False,
-                "error": f"代码解析异常: {str(e)}",
-                "keyword": keyword,
-            }
+            return build_error_response(
+                error=f"代码解析异常: {str(e)}",
+                error_code=ErrorCode.UPSTREAM_ERROR,
+                data={"keyword": keyword},
+            )
 
     @mcp.tool(tags={"搜索"})
     async def search_financial_entity(
