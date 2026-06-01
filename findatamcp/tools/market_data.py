@@ -62,14 +62,22 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
     async def get_stock_data(
         ts_code: str,
         stock_code: Optional[str] = None,  # 兼容旧参数名
-        code: Optional[str] = None  # 兼容 code 别名
+        code: Optional[str] = None,  # 兼容 code 别名
+        include_financial: bool = True,  # 过渡开关：False 时跳过财务维度
     ) -> Union[ToolResult, Dict[str, Any]]:
-        """获取股票综合数据（行情+财务+基础信息，支持A股/港股/美股）
+        """获取股票综合快照（行情 + 基础信息 + 可选财务，支持A股/港股/美股）
+
+        本工具是“综合快照”：一次返回实时行情 + 近 60 日行情统计 + 基础信息 +（可选）年报级财务核心项，
+        频率混搭。**财务数据建议改用专门工具 get_financial_summary / get_financial_ratios / 三大报表**，
+        以获得完整历史与一致口径。后续 include_financial 默认值可能改为 False。
 
         Args:
             ts_code: 股票代码，支持 '600519.SH'、'00700.HK'、'AAPL' 或裸码
             stock_code: ts_code 的别名
             code: ts_code 的别名
+            include_financial: 是否拉取并组装财务核心数据，默认 True（保持现有行为）。
+                设为 False 时跳过财务维度，返回里 financial_data 为 None，
+                适用于“只要当日快照 + 基础信息”的轻量场景。
         """
         try:
             # 兼容旧参数名
@@ -238,13 +246,16 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
             await asyncio.sleep(0.2)
 
             # 4. 财务数据（仅 A 股个股支持；指数 / 港美 跳过）
+            #    过渡开关：include_financial=False 时整段跳过，financial_data 置为 None
             _is_a_stock = (
                 market == "A"
                 and _data_source != "index_global"
                 and not api.is_index_code(ts_code)
                 and not api.is_fund_code(ts_code)
             )
-            if not _is_a_stock:
+            if not include_financial:
+                comprehensive_data["financial_data"] = None
+            elif not _is_a_stock:
                 if _data_source == "index_global":
                     _note = f"财务数据不适用于指数（{ts_code} 为港美主流指数）"
                 elif api.is_index_code(ts_code):
@@ -304,14 +315,15 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
                 except Exception as e:
                     comprehensive_data["financial_data"] = {"error": f"获取财务数据失败: {str(e)}"}
 
-            # 检查是否有任何有效数据
+            # 检查是否有任何有效数据（financial_data 可能为 None，跳过时不计入）
             has_valid_data = any(
-                not data.get("error")
+                not (data or {}).get("error")
                 for data in [
                     comprehensive_data.get("realtime_data", {}),
                     comprehensive_data.get("daily_data", {}),
-                    comprehensive_data.get("financial_data", {})
+                    comprehensive_data.get("financial_data", {}),
                 ]
+                if data is not None
             )
 
             if has_valid_data:
@@ -319,6 +331,10 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
                     "success": True,
                     "ts_code": ts_code,
                     "data": comprehensive_data,
+                    "advisory": {
+                        "note": "财务维度建议用专门工具(get_financial_summary/get_financial_ratios)以获得完整历史与一致口径",
+                        "see": ["get_financial_summary", "get_financial_ratios", "get_historical_data"],
+                    },
                     "timestamp": datetime.now().isoformat()
                 }
                 return attach_next_steps(result, "get_stock_data")
@@ -330,11 +346,11 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
                 )
 
         except Exception as e:
-            return {
-                "success": False,
-                "error": f"获取股票综合数据异常: {str(e)}",
-                "ts_code": ts_code if 'ts_code' in locals() else None
-            }
+            return build_error_response(
+                error=f"获取股票综合数据异常: {str(e)}",
+                error_code=ErrorCode.NO_DATA,
+                data={"ts_code": ts_code if 'ts_code' in locals() else None},
+            )
 
     @mcp.tool(tags={"行情数据"}, annotations=READONLY_ANNOTATIONS, )
     async def get_latest_daily_close(

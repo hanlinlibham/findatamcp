@@ -181,7 +181,9 @@ ROUTING_MAP: Dict[str, Dict[str, Any]] = {
     "get_historical_data": {
         "produces": [], "consumes": ["ts_code"],
         "next_steps": [
-            {"intent": "做深度量化分析(技术/风险)", "tool": "analyze_stock_performance",
+            {"intent": "看技术指标(MA/RSI/MACD)", "tool": "compute_technical_indicators",
+             "param_from": {"stock_codes": "ts_code"}},
+            {"intent": "看风险/收益指标(Sharpe/回撤/VaR)", "tool": "compute_risk_metrics",
              "param_from": {"stock_codes": "ts_code"}},
         ],
     },
