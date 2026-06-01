@@ -1,0 +1,61 @@
+# Golden traces：自然语言任务 → 期望工具调用序列
+# 用于 LLM 路由评测(tests/eval/run_llm_eval.py)。
+# expected_first: 可接受的"第一个工具"集合(任一命中即算对)。
+# expected_next:  在 first 之后、可接受的下一步工具集合(可选)。
+# kind: routing(常规路由) | recovery(报错自纠)。
+
+traces:
+  - id: maotai_trend
+    kind: routing
+    task: "茅台最近一年走势如何"
+    expected_first: [resolve_symbol, search_financial_entity, search_stocks]
+    expected_next: [get_historical_data]
+
+  - id: baijiu_leaders_perf
+    kind: routing
+    task: "白酒板块的龙头股今年涨了多少"
+    expected_first: [get_sector_top_stocks]
+    expected_next: [get_batch_pct_chg]
+
+  - id: market_today
+    kind: routing
+    task: "今天 A 股市场整体怎么样"
+    expected_first: [get_market_summary]
+
+  - id: top_gainers
+    kind: routing
+    task: "今天涨得最多的股票有哪些"
+    expected_first: [get_market_extremes]
+
+  - id: corr_two_stocks
+    kind: routing
+    task: "宁德时代和比亚迪股价的相关性如何"
+    expected_first: [resolve_symbol, search_financial_entity, search_stocks]
+    expected_next: [compute_correlation]
+
+  - id: hs300_valuation
+    kind: routing
+    task: "沪深300成分股的估值水平"
+    expected_first: [get_index_weight, get_index_valuation, resolve_symbol]
+
+  - id: maotai_ratios
+    kind: routing
+    task: "茅台的 ROE 和毛利率是多少"
+    expected_first: [resolve_symbol, search_financial_entity]
+    expected_next: [get_financial_ratios]
+
+  - id: macro_now
+    kind: routing
+    task: "当前宏观经济环境怎么样"
+    expected_first: [get_macro_summary]
+
+  # 报错自纠：把中文名当代码直接传给行情工具 → 期望据 hint 改调 resolve_symbol
+  - id: recover_name_as_code
+    kind: recovery
+    task: "我调用 get_historical_data(ts_code='茅台') 得到了如下错误，下一步该调用哪个工具来修复？"
+    error_payload:
+      success: false
+      error: "无法将该名称/代码解析为标准 ts_code"
+      error_code: symbol_not_found
+      hint: "先调用 resolve_symbol(关键词) 解析为标准 ts_code，再传入本工具；勿直接把中文名称当代码传入。"
+    expected_first: [resolve_symbol]

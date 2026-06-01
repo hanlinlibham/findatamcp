@@ -371,10 +371,7 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
             }
         """
         try:
-            if not api.is_available():
-                return build_error_response("数据服务不可用（Pro 接口未配置）", ErrorCode.PRO_REQUIRED)
-
-            # 校验 metric 枚举
+            # 先校验 metric 枚举（参数校验前置，不依赖 API 可用性）
             _valid_metrics = ["pct_chg", "amount", "turnover_rate"]
             if metric not in _valid_metrics:
                 return build_error_response(
@@ -383,6 +380,9 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
                     valid_values=_valid_metrics,
                     data={"metric": metric},
                 )
+
+            if not api.is_available():
+                return build_error_response("数据服务不可用（Pro 接口未配置）", ErrorCode.PRO_REQUIRED)
 
             # 日期处理
             if not trade_date:
