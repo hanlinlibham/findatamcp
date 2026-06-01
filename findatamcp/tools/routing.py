@@ -71,7 +71,7 @@ ROUTING_MAP: Dict[str, Dict[str, Any]] = {
              "param_from": {"ts_code": "candidates[0].code"}},
             {"intent": "看综合快照", "tool": "get_stock_data",
              "param_from": {"ts_code": "candidates[0].code"}},
-            {"intent": "看财务指标(ROE/毛利率等)", "tool": "get_financial_indicator",
+            {"intent": "看财务比率(ROE/毛利率等)", "tool": "get_financial_ratios",
              "param_from": {"ts_code": "candidates[0].code"}},
         ],
     },
@@ -104,7 +104,7 @@ ROUTING_MAP: Dict[str, Dict[str, Any]] = {
         "next_steps": [
             {"intent": "批量算区间涨跌幅", "tool": "get_batch_pct_chg",
              "param_from": {"stock_codes": "codes[:10]"}},
-            {"intent": "相关性/Beta 分析", "tool": "analyze_price_correlation",
+            {"intent": "相关性/Beta 分析", "tool": "compute_correlation",
              "param_from": {"stock_codes": "codes[:10]"}},
             {"intent": "看某只龙头最新价", "tool": "get_latest_daily_close"},
         ],
@@ -114,7 +114,7 @@ ROUTING_MAP: Dict[str, Dict[str, Any]] = {
         "next_steps": [
             {"intent": "批量算成分股涨跌", "tool": "get_batch_pct_chg",
              "note": "用 constituents[].con_code 作为 stock_codes（建议取前若干只）"},
-            {"intent": "成分股相关性", "tool": "analyze_price_correlation",
+            {"intent": "成分股相关性", "tool": "compute_correlation",
              "note": "用 constituents[].con_code 作为 stock_codes"},
             {"intent": "看指数估值水平", "tool": "get_index_valuation"},
         ],
@@ -155,7 +155,7 @@ ROUTING_MAP: Dict[str, Dict[str, Any]] = {
     "get_batch_pct_chg": {
         "produces": [], "consumes": ["codes"],
         "next_steps": [
-            {"intent": "做相关性/Beta", "tool": "analyze_price_correlation"},
+            {"intent": "做相关性/Beta", "tool": "compute_correlation"},
         ],
     },
 
@@ -167,7 +167,7 @@ ROUTING_MAP: Dict[str, Dict[str, Any]] = {
              "param_from": {"ts_code": "ts_code"}},
             {"intent": "看资金流向", "tool": "get_moneyflow",
              "param_from": {"ts_code": "ts_code"}},
-            {"intent": "看财务指标(ROE等)", "tool": "get_financial_indicator",
+            {"intent": "看财务比率(ROE等)", "tool": "get_financial_ratios",
              "param_from": {"ts_code": "ts_code"}},
         ],
     },
@@ -188,7 +188,9 @@ ROUTING_MAP: Dict[str, Dict[str, Any]] = {
     "get_basic_info": {
         "produces": [], "consumes": ["ts_code"],
         "next_steps": [
-            {"intent": "看核心财务科目", "tool": "get_financial_indicators",
+            {"intent": "看核心财务科目(金额)", "tool": "get_financial_summary",
+             "param_from": {"ts_code": "ts_code"}},
+            {"intent": "看财务比率(ROE等)", "tool": "get_financial_ratios",
              "param_from": {"ts_code": "ts_code"}},
             {"intent": "看利润表", "tool": "get_income_statement",
              "param_from": {"ts_code": "ts_code"}},
@@ -196,7 +198,7 @@ ROUTING_MAP: Dict[str, Dict[str, Any]] = {
              "param_from": {"ts_code": "ts_code"}},
         ],
     },
-    "get_financial_indicators": {
+    "get_financial_summary": {
         "produces": [], "consumes": ["ts_code"],
         "next_steps": [
             {"intent": "看完整利润表", "tool": "get_income_statement",

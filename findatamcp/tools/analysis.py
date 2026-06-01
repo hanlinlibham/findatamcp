@@ -21,6 +21,8 @@ from ..utils.tushare_api import TushareAPI, fetch_daily_data
 from ..utils.large_data_handler import sample_rows
 from ..utils.ui_hint import attach_hint_to_dict
 from ..utils.artifact_payload import finalize_artifact_result, AS_FILE_INCLUDE_UI_DECISION_GUIDE
+from ..utils.response import build_error_response
+from ..utils.errors import ErrorCode
 from .constants import INCLUDE_UI_DESCRIPTION
 # P0-2: 使用共享的日期容错工具
 from ..utils.data_processing import adjust_end_date_to_latest_trading_day as _adjust_end_date_to_latest_trading_day
@@ -507,33 +509,34 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                 "ts_code": ts_code if 'ts_code' in locals() else None
             }
 
-    @mcp.tool(tags={"量化分析"})
-    async def analyze_price_correlation(
+    # ============================================================
+    # 私有核心实现：相关性/Beta 计算（供 compute_correlation 及旧 facade 复用）
+    # 逻辑原样搬自 analyze_price_correlation / calculate_metrics，未做任何金融计算改动。
+    # ============================================================
+
+    _DEPRECATION_MARKER = {
+        "replaced_by": "compute_correlation",
+        "sunset": "2026-12-31",
+        "note": "请改用 compute_correlation(basis=..., mode=...)",
+    }
+
+    async def _corr_by_price(
         stock_codes: List[str],
         start_date: str = None,
         end_date: str = None,
-        analysis_type: str = "correlation",
+        mode: str = "matrix",
         as_file: bool = False,
-        include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
+        include_ui: bool = False,
+        tool_name: str = "analyze_price_correlation",
+        deprecation: bool = False,
     ) -> Dict[str, Any]:
+        """基于价格的多股相关性/Beta/业绩对比核心实现（原 analyze_price_correlation 逻辑）。
+
+        mode ∈ {matrix(=correlation), beta, comparison}。
         """
-        【相关性分析】计算多只股票的价格相关性矩阵、贝塔系数、区间收益对比，自动对齐
+        # 兼容旧的 analysis_type 别名：matrix 等价于 correlation
+        analysis_type = "correlation" if mode == "matrix" else mode
 
-        专门处理多只股票的时间序列计算，自动处理数据对齐和缺失值。
-
-        Args:
-            stock_codes: 股票代码列表，至少2个，例如 ["600519.SH", "000858.SZ"]
-            start_date: 开始日期，格式 YYYYMMDD，可选，默认为最近1年
-            end_date: 结束日期，格式 YYYYMMDD，可选，默认为昨天
-            analysis_type: 分析类型，correlation=相关性，beta=贝塔系数，comparison=业绩对比
-
-        Returns:
-            量化分析结果
-
-        Examples:
-            >>> result = await analyze_price_correlation(["000001", "600036"], "20230101", "20231231")
-            >>> print(f"相关系数: {result['correlation_matrix']['000001.SZ']['600036.SH']}")
-        """
         # 设置默认日期
         if not start_date:
             start_date = (datetime.now() - timedelta(days=365)).strftime('%Y%m%d')
@@ -550,24 +553,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
 
         if len(stock_codes) < 2:
             return {"success": False, "error": "至少需要2个股票代码进行相关性分析"}
-        """
-        量化分析工具（相关性、贝塔、业绩对比）
 
-        专门处理多只股票的时间序列计算，自动处理数据对齐和缺失值。
-
-        Args:
-            stock_codes: 股票代码列表
-            start_date: 开始日期（YYYYMMDD）
-            end_date: 结束日期（YYYYMMDD）
-            analysis_type: 分析类型，correlation=相关性，beta=贝塔系数，comparison=业绩对比
-
-        Returns:
-            量化分析结果
-
-        Examples:
-            >>> result = await analyze_price_correlation(["000001", "600036"], "20230101", "20231231")
-            >>> print(f"相关系数: {result['correlation_matrix']['000001.SZ']['600036.SH']}")
-        """
         date_adjust_msg = ""  # 🔥 日期调整说明
         try:
             if not api.is_available():
@@ -820,11 +806,13 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                 if isinstance(inner, dict):
                     for b, val in inner.items():
                         _corr_rows.append({"stock_a": a, "stock_b": b, "correlation": val})
+            if deprecation:
+                result["deprecation"] = dict(_DEPRECATION_MARKER)
             _header = f"相关性分析 | {len(stock_names)} 个标的 × {start_date}~{end_date} | {len(_corr_rows)} 对"
             return finalize_artifact_result(
                 rows=_corr_rows,
                 result=result,
-                tool_name="analyze_price_correlation",
+                tool_name=tool_name,
                 query_params={"stock_codes": ",".join(stock_codes or []), "start_date": start_date, "end_date": end_date, "analysis_type": analysis_type},
                 ui_uri="ui://findata/correlation-matrix",
                 as_file=as_file,
@@ -838,6 +826,47 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                 "error": f"量化分析异常: {str(e)}",
                 "stock_codes": stock_codes
             }
+
+    @mcp.tool(tags={"量化分析"})
+    async def analyze_price_correlation(
+        stock_codes: List[str],
+        start_date: str = None,
+        end_date: str = None,
+        analysis_type: str = "correlation",
+        as_file: bool = False,
+        include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
+    ) -> Dict[str, Any]:
+        """
+        [DEPRECATED→compute_correlation] 【相关性分析】计算多只股票的价格相关性矩阵、贝塔系数、区间收益对比，自动对齐
+
+        ⚠️ 已废弃，请改用 compute_correlation(basis='price', mode='matrix'|'beta'|'comparison')。
+        行为与本工具完全一致，本工具保留为兼容 facade。
+
+        Args:
+            stock_codes: 股票代码列表，至少2个，例如 ["600519.SH", "000858.SZ"]
+            start_date: 开始日期，格式 YYYYMMDD，可选，默认为最近1年
+            end_date: 结束日期，格式 YYYYMMDD，可选，默认为昨天
+            analysis_type: 分析类型，correlation=相关性，beta=贝塔系数，comparison=业绩对比
+
+        Returns:
+            量化分析结果
+
+        Examples:
+            >>> result = await analyze_price_correlation(["000001", "600036"], "20230101", "20231231")
+            >>> print(f"相关系数: {result['correlation_matrix']['000001.SZ']['600036.SH']}")
+        """
+        # facade：委托私有核心实现（行为不变），仅追加 deprecation 标记
+        _mode = "matrix" if analysis_type == "correlation" else analysis_type
+        return await _corr_by_price(
+            stock_codes=stock_codes,
+            start_date=start_date,
+            end_date=end_date,
+            mode=_mode,
+            as_file=as_file,
+            include_ui=include_ui,
+            tool_name="analyze_price_correlation",
+            deprecation=True,
+        )
 
     @mcp.tool(tags={"量化分析"})
     async def analyze_stock_performance(
@@ -1062,26 +1091,19 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                 "stock_codes": stock_codes
             }
 
-    @mcp.tool(tags={"量化分析"})
-    async def calculate_metrics(
+    async def _corr_by_returns(
         stock_codes: List[str],
         start_date: str = None,
         end_date: str = None,
         metric: str = "close",
         as_file: bool = False,
-        include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
+        include_ui: bool = False,
+        tool_name: str = "calculate_metrics",
+        deprecation: bool = False,
     ) -> Dict[str, Any]:
-        """
-        【指标矩阵】基于价格/成交量/涨跌幅等字段计算多股票的相关系数矩阵
+        """基于收益率的多股相关性矩阵核心实现（原 calculate_metrics 逻辑）。
 
-        Args:
-            stock_codes: 股票代码列表，例如 ["600519.SH", "000858.SZ"]
-            start_date: 开始日期 (YYYYMMDD)，可选，默认为最近1年
-            end_date: 结束日期 (YYYYMMDD)，可选，默认为昨天
-            metric: 计算基于的字段 (close/vol/pct_chg)，默认为收盘价 close
-
-        Returns:
-            包含相关性矩阵和统计信息的字典
+        metric ∈ {close, vol, pct_chg}：透视所选字段后用日收益率计算相关性。
         """
         # 🔧 智能参数解析：处理MCP客户端参数传递错误的情况
         # 有时候客户端会把所有参数都传给第一个参数
@@ -1373,6 +1395,9 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                 result["date_adjusted"] = True
                 result["date_adjust_message"] = date_adjust_msg
 
+            if deprecation:
+                result["deprecation"] = dict(_DEPRECATION_MARKER)
+
             # 相关性矩阵展平为行
             _corr_rows = []
             for a, inner in (safe_corr_dict or {}).items():
@@ -1383,7 +1408,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
             return finalize_artifact_result(
                 rows=_corr_rows,
                 result=result,
-                tool_name="calculate_metrics",
+                tool_name=tool_name,
                 query_params={"stock_codes": ",".join(ts_codes_list or []), "start_date": start_date, "end_date": end_date, "metric": metric},
                 ui_uri="ui://findata/correlation-matrix",
                 as_file=as_file,
@@ -1393,3 +1418,114 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
 
         except Exception as e:
             return {"success": False, "error": f"计算指标异常: {str(e)}"}
+
+    @mcp.tool(tags={"量化分析"})
+    async def calculate_metrics(
+        stock_codes: List[str],
+        start_date: str = None,
+        end_date: str = None,
+        metric: str = "close",
+        as_file: bool = False,
+        include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
+    ) -> Dict[str, Any]:
+        """
+        [DEPRECATED→compute_correlation] 【指标矩阵】基于价格/成交量/涨跌幅等字段计算多股票的相关系数矩阵（收益率口径）
+
+        ⚠️ 已废弃，请改用 compute_correlation(basis='returns', metric='close'|'vol'|'pct_chg')。
+        行为与本工具完全一致，本工具保留为兼容 facade。
+
+        Args:
+            stock_codes: 股票代码列表，例如 ["600519.SH", "000858.SZ"]
+            start_date: 开始日期 (YYYYMMDD)，可选，默认为最近1年
+            end_date: 结束日期 (YYYYMMDD)，可选，默认为昨天
+            metric: 计算基于的字段 (close/vol/pct_chg)，默认为收盘价 close
+
+        Returns:
+            包含相关性矩阵和统计信息的字典
+        """
+        # facade：委托私有核心实现（行为不变），仅追加 deprecation 标记
+        return await _corr_by_returns(
+            stock_codes=stock_codes,
+            start_date=start_date,
+            end_date=end_date,
+            metric=metric,
+            as_file=as_file,
+            include_ui=include_ui,
+            tool_name="calculate_metrics",
+            deprecation=True,
+        )
+
+    @mcp.tool(tags={"量化分析"})
+    async def compute_correlation(
+        stock_codes: List[str],
+        start_date: str = None,
+        end_date: str = None,
+        basis: str = "price",
+        mode: str = "matrix",
+        metric: str = "close",
+        as_file: bool = False,
+        include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
+    ) -> Dict[str, Any]:
+        """
+        【相关性/Beta 统一入口】计算多只标的的相关性矩阵、贝塔系数或区间业绩对比，自动对齐交易日
+
+        这是相关性 / Beta / 业绩对比分析的统一入口，取代旧的
+        analyze_price_correlation（基于价格）与 calculate_metrics（基于收益率）。
+
+        Args:
+            stock_codes: 股票/指数代码列表，至少 2 个，例如 ["600519.SH", "000858.SZ"]
+            start_date: 开始日期 YYYYMMDD，可选，默认最近 1 年
+            end_date: 结束日期 YYYYMMDD，可选，默认昨天（自动回退到最近交易日）
+            basis: 计算口径
+                - 'price'   : 基于价格序列（对应原 analyze_price_correlation），支持 mode
+                - 'returns' : 基于日收益率口径（对应原 calculate_metrics）
+            mode: 仅当 basis='price' 时生效，分析类型
+                - 'matrix'     : 相关性矩阵（默认）
+                - 'beta'       : 贝塔系数（相对第一只标的）
+                - 'comparison' : 区间业绩对比（收益/波动/Sharpe/回撤）
+            metric: 仅当 basis='returns' 时生效，透视字段 (close/vol/pct_chg)，默认 close
+
+        Returns:
+            相关性 / Beta / 业绩对比结果
+
+        Examples:
+            >>> await compute_correlation(["600519.SH", "000858.SZ"], basis="price", mode="matrix")
+            >>> await compute_correlation(["600519.SH", "000858.SZ"], basis="price", mode="beta")
+            >>> await compute_correlation(["600519.SH", "000858.SZ"], basis="returns", metric="close")
+        """
+        valid_basis = ["price", "returns"]
+        if basis not in valid_basis:
+            return build_error_response(
+                error=f"basis 取值非法: {basis!r}",
+                error_code=ErrorCode.INVALID_ENUM,
+                valid_values=valid_basis,
+            )
+
+        if basis == "returns":
+            return await _corr_by_returns(
+                stock_codes=stock_codes,
+                start_date=start_date,
+                end_date=end_date,
+                metric=metric,
+                as_file=as_file,
+                include_ui=include_ui,
+                tool_name="compute_correlation",
+            )
+
+        # basis == "price"
+        valid_mode = ["matrix", "beta", "comparison"]
+        if mode not in valid_mode:
+            return build_error_response(
+                error=f"mode 取值非法: {mode!r}",
+                error_code=ErrorCode.INVALID_ENUM,
+                valid_values=valid_mode,
+            )
+        return await _corr_by_price(
+            stock_codes=stock_codes,
+            start_date=start_date,
+            end_date=end_date,
+            mode=mode,
+            as_file=as_file,
+            include_ui=include_ui,
+            tool_name="compute_correlation",
+        )
