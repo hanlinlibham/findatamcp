@@ -265,7 +265,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
     @mcp.tool(tags={"财务数据"})
     async def get_income_statement(
         ts_code: str = "",
-        period: str = "20231231",
+        period: str = "",
         report_type: str = "1",
         stock_code: str = "",
         code: str = "",
@@ -279,7 +279,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
 
         Args:
             ts_code: A股代码，支持 '600519.SH' 或 '600519'（自动补全后缀）。也可用 stock_code 参数名
-            period: 报告期(YYYYMMDD)，如 20241231, 20240930。默认'20231231'
+            period: 报告期(YYYYMMDD)，留空(默认)自动取最新已披露报告期；也可指定如 20251231/20250930。查询未公布的报告期会返回空数据
             report_type: 1-合并报表,2-单季合并,3-调整单季,4-调整合并
 
         Returns:
@@ -300,24 +300,27 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
             if not api.is_available():
                 return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
 
+            # period 留空时自动取最新已披露报告期，避免硬编码默认值随时间过时
+            _period_kwargs = {"period": period} if period else {"limit": 1}
             df = await cache.cached_call(
                 api.pro.income,
                 cache_type="financial",
                 ts_code=ts_code,
-                period=period,
-                report_type=report_type
+                report_type=report_type,
+                **_period_kwargs,
             )
 
             if df.empty:
-                return {"success": False, "error": "未找到利润表数据", "ts_code": ts_code, "period": period}
+                return {"success": False, "error": "未找到利润表数据", "ts_code": ts_code, "period": period or "latest"}
 
             # 转换为字典
             data = df.iloc[0].to_dict()
+            actual_period = period or data.get("end_date", "")
 
             return {
                 "success": True,
                 "ts_code": ts_code,
-                "period": period,
+                "period": actual_period,
                 "report_type": report_type,
                 "data": data,
                 "timestamp": datetime.now().isoformat()
@@ -332,7 +335,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
     @mcp.tool(tags={"财务数据"})
     async def get_balance_sheet(
         ts_code: str = "",
-        period: str = "20231231",
+        period: str = "",
         report_type: str = "1",
         stock_code: str = "",
         code: str = "",
@@ -341,7 +344,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
 
         Args:
             ts_code: A股代码，支持 '600519.SH' 或 '600519'（自动补全后缀）。也可用 stock_code 参数名
-            period: 报告期(YYYYMMDD)，如 20241231, 20240930。未公布的报告期会返回空数据，默认'20231231'
+            period: 报告期(YYYYMMDD)，留空(默认)自动取最新已披露报告期；未公布的报告期会返回空数据。也可指定如 20251231/20250930
             report_type: 1-合并报表,2-单季合并,3-调整单季,4-调整合并
 
         Returns:
@@ -362,23 +365,26 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
             if not api.is_available():
                 return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
 
+            # period 留空时自动取最新已披露报告期，避免硬编码默认值随时间过时
+            _period_kwargs = {"period": period} if period else {"limit": 1}
             df = await cache.cached_call(
                 api.pro.balancesheet,
                 cache_type="financial",
                 ts_code=ts_code,
-                period=period,
-                report_type=report_type
+                report_type=report_type,
+                **_period_kwargs,
             )
 
             if df.empty:
-                return {"success": False, "error": "未找到资产负债表数据", "ts_code": ts_code, "period": period}
+                return {"success": False, "error": "未找到资产负债表数据", "ts_code": ts_code, "period": period or "latest"}
 
             data = df.iloc[0].to_dict()
+            actual_period = period or data.get("end_date", "")
 
             return {
                 "success": True,
                 "ts_code": ts_code,
-                "period": period,
+                "period": actual_period,
                 "report_type": report_type,
                 "data": data,
                 "timestamp": datetime.now().isoformat()
@@ -393,7 +399,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
     @mcp.tool(tags={"财务数据"})
     async def get_cashflow_statement(
         ts_code: str = "",
-        period: str = "20231231",
+        period: str = "",
         report_type: str = "1",
         stock_code: str = "",
         code: str = "",
@@ -402,7 +408,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
 
         Args:
             ts_code: A股代码，支持 '600519.SH' 或 '600519'（自动补全后缀）。也可用 stock_code 参数名
-            period: 报告期(YYYYMMDD)，如 20241231, 20240930。未公布的报告期会返回空数据，默认'20231231'
+            period: 报告期(YYYYMMDD)，留空(默认)自动取最新已披露报告期；未公布的报告期会返回空数据。也可指定如 20251231/20250930
             report_type: 1-合并报表,2-单季合并,3-调整单季,4-调整合并
 
         Returns:
@@ -423,23 +429,26 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
             if not api.is_available():
                 return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
 
+            # period 留空时自动取最新已披露报告期，避免硬编码默认值随时间过时
+            _period_kwargs = {"period": period} if period else {"limit": 1}
             df = await cache.cached_call(
                 api.pro.cashflow,
                 cache_type="financial",
                 ts_code=ts_code,
-                period=period,
-                report_type=report_type
+                report_type=report_type,
+                **_period_kwargs,
             )
 
             if df.empty:
-                return {"success": False, "error": "未找到现金流量表数据", "ts_code": ts_code, "period": period}
+                return {"success": False, "error": "未找到现金流量表数据", "ts_code": ts_code, "period": period or "latest"}
 
             data = df.iloc[0].to_dict()
+            actual_period = period or data.get("end_date", "")
 
             return {
                 "success": True,
                 "ts_code": ts_code,
-                "period": period,
+                "period": actual_period,
                 "report_type": report_type,
                 "data": data,
                 "timestamp": datetime.now().isoformat()
@@ -473,22 +482,25 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
             if not api.is_available():
                 return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
 
+            # period 留空时自动取最新已披露报告期（与 get_financial_summary 一致），避免硬编码默认值随时间过时
+            _period_kwargs = {"period": period} if period else {"limit": 1}
             df = await cache.cached_call(
                 api.pro.fina_indicator,
                 cache_type="financial",
                 ts_code=ts_code,
-                period=period
+                **_period_kwargs,
             )
 
             if df.empty:
-                return {"success": False, "error": "未找到财务指标数据", "ts_code": ts_code, "period": period}
+                return {"success": False, "error": "未找到财务指标数据", "ts_code": ts_code, "period": period or "latest"}
 
             data = df.iloc[0].to_dict()
+            actual_period = period or data.get("end_date", "")
 
             return {
                 "success": True,
                 "ts_code": ts_code,
-                "period": period,
+                "period": actual_period,
                 "data": data,
                 "timestamp": datetime.now().isoformat()
             }
@@ -502,7 +514,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
     @mcp.tool(tags={"财务数据"})
     async def get_financial_ratios(
         ts_code: str = "",
-        period: str = "20231231",
+        period: str = "",
         stock_code: str = "",
         code: str = "",
     ) -> Dict[str, Any]:
@@ -512,7 +524,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
 
         Args:
             ts_code: A股代码，支持 '600519.SH' 或 '600519'（自动补全后缀）。也可用 stock_code 参数名
-            period: 报告期(YYYYMMDD)，默认'20231231'
+            period: 报告期(YYYYMMDD)，留空(默认)自动取最新已披露报告期；也可指定如 20251231/20250930
 
         Returns:
             roe/roa/grossprofit_margin/netprofit_margin/debt_to_assets/eps/bps: 财务比率字段
@@ -522,7 +534,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
     @mcp.tool(tags={"财务数据"})
     async def get_financial_indicator(
         ts_code: str = "",
-        period: str = "20231231",
+        period: str = "",
         stock_code: str = "",
         code: str = "",
     ) -> Dict[str, Any]:
@@ -530,7 +542,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
 
         Args:
             ts_code: A股代码，支持 '600519.SH' 或 '600519'（自动补全后缀）。也可用 stock_code 参数名
-            period: 报告期(YYYYMMDD)，默认'20231231'
+            period: 报告期(YYYYMMDD)，留空(默认)自动取最新已披露报告期；也可指定如 20251231/20250930
 
         Returns:
             roe/roa/grossprofit_margin/netprofit_margin/debt_to_assets/eps/bps: 财务比率字段
