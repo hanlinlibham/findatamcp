@@ -7,6 +7,7 @@
 from typing import Dict, Any, Callable, Optional
 from datetime import datetime
 import asyncio
+import functools
 import logging
 
 logger = logging.getLogger(__name__)
@@ -105,24 +106,39 @@ class TushareCache:
         kwargs: dict
     ) -> str:
         """生成缓存键"""
-        # 处理 functools.partial 对象和其他没有 __name__ 的可调用对象
-        try:
-            func_name = func.__name__
-        except AttributeError:
-            # 处理 functools.partial 对象或其他没有 __name__ 的可调用对象
-            func_name = getattr(func, 'func', func).__name__ if hasattr(getattr(func, 'func', None), '__name__') else str(func)
+        # tushare 的 pro.income / pro.balancesheet 等都是 functools.partial(query, '<接口名>')，
+        # 接口名落在 partial.args 里。必须把 partial 的 args/keywords 纳入 key，否则不同接口
+        # 在相同 kwargs 下会生成相同 key，导致缓存串味（如资产负债表命中利润表的缓存）。
+        bound_args: tuple = ()
+        bound_kwargs: dict = {}
+        if isinstance(func, functools.partial):
+            bound_args = func.args or ()
+            bound_kwargs = func.keywords or {}
+            base = func.func
+            func_name = getattr(base, '__name__', str(base))
+        else:
+            try:
+                func_name = func.__name__
+            except AttributeError:
+                func_name = getattr(func, 'func', func).__name__ if hasattr(getattr(func, 'func', None), '__name__') else str(func)
 
-        # 使用函数名 + 参数生成唯一键
+        # 使用函数名 + 绑定参数(partial) + 调用参数生成唯一键
         key_parts = [func_name]
-        
+
+        if bound_args:
+            key_parts.append(str(bound_args))
+
+        if bound_kwargs:
+            key_parts.append(str(sorted(bound_kwargs.items())))
+
         if args:
             key_parts.append(str(args))
-        
+
         if kwargs:
             # 排序 kwargs 以确保一致性
             sorted_kwargs = sorted(kwargs.items())
             key_parts.append(str(sorted_kwargs))
-        
+
         return ":".join(key_parts)
     
     def _get_from_cache(
