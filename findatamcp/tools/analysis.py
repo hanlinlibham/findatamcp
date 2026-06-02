@@ -21,6 +21,8 @@ from ..utils.tushare_api import TushareAPI, fetch_daily_data
 from ..utils.large_data_handler import sample_rows
 from ..utils.ui_hint import attach_hint_to_dict
 from ..utils.artifact_payload import finalize_artifact_result, AS_FILE_INCLUDE_UI_DECISION_GUIDE
+from ..utils.response import build_error_response
+from ..utils.errors import ErrorCode
 from .constants import INCLUDE_UI_DESCRIPTION
 # P0-2: 使用共享的日期容错工具
 from ..utils.data_processing import adjust_end_date_to_latest_trading_day as _adjust_end_date_to_latest_trading_day
@@ -507,33 +509,34 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                 "ts_code": ts_code if 'ts_code' in locals() else None
             }
 
-    @mcp.tool(tags={"量化分析"})
-    async def analyze_price_correlation(
+    # ============================================================
+    # 私有核心实现：相关性/Beta 计算（供 compute_correlation 及旧 facade 复用）
+    # 逻辑原样搬自 analyze_price_correlation / calculate_metrics，未做任何金融计算改动。
+    # ============================================================
+
+    _DEPRECATION_MARKER = {
+        "replaced_by": "compute_correlation",
+        "sunset": "2026-12-31",
+        "note": "请改用 compute_correlation(basis=..., mode=...)",
+    }
+
+    async def _corr_by_price(
         stock_codes: List[str],
         start_date: str = None,
         end_date: str = None,
-        analysis_type: str = "correlation",
+        mode: str = "matrix",
         as_file: bool = False,
-        include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
+        include_ui: bool = False,
+        tool_name: str = "analyze_price_correlation",
+        deprecation: bool = False,
     ) -> Dict[str, Any]:
+        """基于价格的多股相关性/Beta/业绩对比核心实现（原 analyze_price_correlation 逻辑）。
+
+        mode ∈ {matrix(=correlation), beta, comparison}。
         """
-        【相关性分析】计算多只股票的价格相关性矩阵、贝塔系数、区间收益对比，自动对齐
+        # 兼容旧的 analysis_type 别名：matrix 等价于 correlation
+        analysis_type = "correlation" if mode == "matrix" else mode
 
-        专门处理多只股票的时间序列计算，自动处理数据对齐和缺失值。
-
-        Args:
-            stock_codes: 股票代码列表，至少2个，例如 ["600519.SH", "000858.SZ"]
-            start_date: 开始日期，格式 YYYYMMDD，可选，默认为最近1年
-            end_date: 结束日期，格式 YYYYMMDD，可选，默认为昨天
-            analysis_type: 分析类型，correlation=相关性，beta=贝塔系数，comparison=业绩对比
-
-        Returns:
-            量化分析结果
-
-        Examples:
-            >>> result = await analyze_price_correlation(["000001", "600036"], "20230101", "20231231")
-            >>> print(f"相关系数: {result['correlation_matrix']['000001.SZ']['600036.SH']}")
-        """
         # 设置默认日期
         if not start_date:
             start_date = (datetime.now() - timedelta(days=365)).strftime('%Y%m%d')
@@ -550,24 +553,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
 
         if len(stock_codes) < 2:
             return {"success": False, "error": "至少需要2个股票代码进行相关性分析"}
-        """
-        量化分析工具（相关性、贝塔、业绩对比）
 
-        专门处理多只股票的时间序列计算，自动处理数据对齐和缺失值。
-
-        Args:
-            stock_codes: 股票代码列表
-            start_date: 开始日期（YYYYMMDD）
-            end_date: 结束日期（YYYYMMDD）
-            analysis_type: 分析类型，correlation=相关性，beta=贝塔系数，comparison=业绩对比
-
-        Returns:
-            量化分析结果
-
-        Examples:
-            >>> result = await analyze_price_correlation(["000001", "600036"], "20230101", "20231231")
-            >>> print(f"相关系数: {result['correlation_matrix']['000001.SZ']['600036.SH']}")
-        """
         date_adjust_msg = ""  # 🔥 日期调整说明
         try:
             if not api.is_available():
@@ -820,11 +806,13 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                 if isinstance(inner, dict):
                     for b, val in inner.items():
                         _corr_rows.append({"stock_a": a, "stock_b": b, "correlation": val})
+            if deprecation:
+                result["deprecation"] = dict(_DEPRECATION_MARKER)
             _header = f"相关性分析 | {len(stock_names)} 个标的 × {start_date}~{end_date} | {len(_corr_rows)} 对"
             return finalize_artifact_result(
                 rows=_corr_rows,
                 result=result,
-                tool_name="analyze_price_correlation",
+                tool_name=tool_name,
                 query_params={"stock_codes": ",".join(stock_codes or []), "start_date": start_date, "end_date": end_date, "analysis_type": analysis_type},
                 ui_uri="ui://findata/correlation-matrix",
                 as_file=as_file,
@@ -840,6 +828,332 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
             }
 
     @mcp.tool(tags={"量化分析"})
+    async def analyze_price_correlation(
+        stock_codes: List[str],
+        start_date: str = None,
+        end_date: str = None,
+        analysis_type: str = "correlation",
+        as_file: bool = False,
+        include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
+    ) -> Dict[str, Any]:
+        """
+        [DEPRECATED→compute_correlation] 【相关性分析】计算多只股票的价格相关性矩阵、贝塔系数、区间收益对比，自动对齐
+
+        ⚠️ 已废弃，请改用 compute_correlation(basis='price', mode='matrix'|'beta'|'comparison')。
+        行为与本工具完全一致，本工具保留为兼容 facade。
+
+        Args:
+            stock_codes: 股票代码列表，至少2个，例如 ["600519.SH", "000858.SZ"]
+            start_date: 开始日期，格式 YYYYMMDD，可选，默认为最近1年
+            end_date: 结束日期，格式 YYYYMMDD，可选，默认为昨天
+            analysis_type: 分析类型，correlation=相关性，beta=贝塔系数，comparison=业绩对比
+
+        Returns:
+            量化分析结果
+
+        Examples:
+            >>> result = await analyze_price_correlation(["000001", "600036"], "20230101", "20231231")
+            >>> print(f"相关系数: {result['correlation_matrix']['000001.SZ']['600036.SH']}")
+        """
+        # facade：委托私有核心实现（行为不变），仅追加 deprecation 标记
+        _mode = "matrix" if analysis_type == "correlation" else analysis_type
+        return await _corr_by_price(
+            stock_codes=stock_codes,
+            start_date=start_date,
+            end_date=end_date,
+            mode=_mode,
+            as_file=as_file,
+            include_ui=include_ui,
+            tool_name="analyze_price_correlation",
+            deprecation=True,
+        )
+
+    # ============================================================
+    # 私有核心实现：技术指标 / 风险收益（供 compute_technical_indicators /
+    # compute_risk_metrics 及旧 analyze_stock_performance facade 复用）
+    # 逻辑原样搬自 analyze_stock_performance，未做任何金融算法改动。
+    # 语义上针对单只股票（原工具 stock_codes 实际仅取第一只）。
+    # ============================================================
+
+    async def _load_perf_df(
+        stock_codes: List[str],
+        start_date: str,
+        end_date: str,
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[pd.DataFrame], Optional[Dict[str, Any]]]:
+        """加载并校验单只股票历史数据，返回 (err_or_None, df, base_result)。
+
+        - 公共的参数校验 / 日期容错 / 数据拉取 / 结果骨架构建，原样搬自
+          analyze_stock_performance 的前半段，行为不变。
+        - 第一个返回值非 None 时表示提前返回的错误/校验响应。
+        """
+        # 设置默认日期
+        if not start_date:
+            start_date = (datetime.now() - timedelta(days=365)).strftime('%Y%m%d')
+        if not end_date:
+            end_date = datetime.now().strftime('%Y%m%d')  # 🔥 先设为今天，后续会自动调整
+
+        # 参数验证
+        if not isinstance(stock_codes, list):
+            return {
+                "success": False,
+                "error": f"参数 stock_codes 必须是列表类型，当前收到: {type(stock_codes)} = {stock_codes[:100] if isinstance(stock_codes, str) else stock_codes}",
+                "hint": "请从 get_sector_top_stocks 工具的返回结果中提取 'codes' 字段，例如: result['codes']"
+            }, None, None
+
+        if not stock_codes:
+            return {
+                "success": False,
+                "error": "股票代码列表不能为空",
+                "hint": "请先调用 get_sector_top_stocks 获取股票代码列表，然后使用返回结果中的 'codes' 字段"
+            }, None, None
+
+        date_adjust_msg = ""  # 🔥 日期调整说明
+        if not api.is_available():
+            return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}, None, None
+
+        # 🔥 日期容错：自动调整结束日期到最近交易日
+        end_date, date_adjust_msg = await _adjust_end_date_to_latest_trading_day(cache, api, end_date)
+        logger.info(f"📅 [analyze_stock_performance] Using date range: {start_date} - {end_date}")
+
+        if len(stock_codes) != 1:
+            return {"success": False, "error": "此工具目前只支持单只股票分析"}, None, None
+
+        stock_code = stock_codes[0]
+        ts_code = api.normalize_stock_code(stock_code)
+
+        # 获取历史数据（支持指数）
+        df = await fetch_daily_data(
+            cache, api, ts_code,
+            cache_type="daily",
+            start_date=start_date,
+            end_date=end_date
+        )
+
+        if df is None or df.empty:
+            return {"success": False, "error": f"未找到 {stock_code} 的历史数据"}, None, None
+
+        df = df.sort_values('trade_date')
+        df.reset_index(drop=True, inplace=True)
+
+        # 计算 asset_type
+        _market = api.get_market(ts_code)
+        if _market == "HK":
+            _asset_type = "hk"
+        elif _market == "US":
+            _asset_type = "us"
+        elif api.is_index_code(ts_code):
+            _asset_type = "index"
+        else:
+            _asset_type = "stock"
+
+        base_result = {
+            "success": True,
+            "stock_code": stock_code,
+            "ts_code": ts_code,
+            "asset_type": _asset_type,
+            "start_date": start_date,
+            "end_date": end_date,
+            "data_points": len(df),
+            "timestamp": datetime.now().isoformat()
+        }
+
+        # 🔥 添加日期调整说明（如果有的话）
+        if date_adjust_msg:
+            base_result["date_adjusted"] = True
+            base_result["date_adjust_message"] = date_adjust_msg
+
+        return None, df, base_result
+
+    async def _technical_impl(
+        stock_codes: List[str],
+        start_date: str = None,
+        end_date: str = None,
+    ) -> Dict[str, Any]:
+        """技术指标核心实现（MA/RSI/MACD/布林/KDJ/威廉/CCI/ROC/TRIX/OBV/量比/ATR/相对强弱）。
+
+        原样搬自 analyze_stock_performance 的 technical 分支，算法未改。针对单只股票。
+        """
+        try:
+            err, df, result = await _load_perf_df(stock_codes, start_date, end_date)
+            if err is not None:
+                return err
+
+            close_prices = df['close'].values
+
+            result["technical_indicators"] = {}
+
+            # 移动平均线
+            ma_indicators = calculate_moving_averages(pd.Series(close_prices))
+            result["technical_indicators"]["moving_averages"] = ma_indicators
+
+            # RSI
+            if len(close_prices) >= 14:
+                result["technical_indicators"]["rsi_14"] = calculate_rsi(pd.Series(close_prices), 14)
+                result["technical_indicators"]["rsi_6"] = calculate_rsi(pd.Series(close_prices), 6)
+
+            # MACD
+            if len(close_prices) >= 34:
+                result["technical_indicators"]["macd"] = calculate_macd(pd.Series(close_prices))
+
+            # 布林带
+            if len(close_prices) >= 20:
+                result["technical_indicators"]["bollinger_bands"] = calculate_bollinger_bands(pd.Series(close_prices))
+
+            # KDJ指标
+            if len(df) >= 9:
+                result["technical_indicators"]["kdj"] = calculate_kdj(df)
+
+            # 威廉指标
+            if len(df) >= 14:
+                result["technical_indicators"]["williams_r"] = calculate_williams(df, 14)
+
+            # CCI指标
+            if len(df) >= 20:
+                result["technical_indicators"]["cci"] = calculate_cci(df, 20)
+
+            # ROC指标
+            if len(close_prices) >= 12:
+                result["technical_indicators"]["roc_12"] = calculate_roc(pd.Series(close_prices), 12)
+
+            # TRIX指标
+            if len(close_prices) >= 20:
+                result["technical_indicators"]["trix"] = calculate_trix(pd.Series(close_prices))
+
+            # OBV指标
+            if len(df) >= 10:
+                result["technical_indicators"]["obv"] = calculate_obv(df)
+
+            # 量比
+            if len(df) > 5:
+                result["technical_indicators"]["volume_ratio"] = calculate_volume_ratio(df)
+
+            # ATR指标
+            if len(df) >= 14:
+                result["technical_indicators"]["atr"] = calculate_atr(df, 14)
+
+            # 相对强弱
+            result["technical_indicators"]["relative_strength"] = calculate_relative_strength(df)
+
+            return result
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"深度量化分析异常: {str(e)}",
+                "stock_codes": stock_codes
+            }
+
+    async def _risk_impl(
+        stock_codes: List[str],
+        start_date: str = None,
+        end_date: str = None,
+    ) -> Dict[str, Any]:
+        """风险/收益核心实现（区间收益/年化/波动/Sharpe/最大回撤/VaR/Beta/下行风险）。
+
+        原样搬自 analyze_stock_performance 的 performance + risk 分支，算法未改。针对单只股票。
+        """
+        try:
+            err, df, result = await _load_perf_df(stock_codes, start_date, end_date)
+            if err is not None:
+                return err
+
+            close_prices = df['close'].values
+            # 区间基准价：优先用首日 pre_close（前一交易日收盘），正确覆盖假期跳空
+            if 'pre_close' in df.columns and pd.notna(df['pre_close'].iloc[0]):
+                _base_px = float(df['pre_close'].iloc[0])
+            else:
+                _base_px = float(close_prices[0])
+            returns = np.diff(np.log(close_prices))
+
+            # 基础业绩分析
+            result["performance"] = {
+                "total_return": ((close_prices[-1] / _base_px) - 1) * 100,
+                "annual_return": (((close_prices[-1] / _base_px) ** (252 / len(close_prices))) - 1) * 100,
+                "volatility": np.std(returns) * np.sqrt(252) * 100,
+                "sharpe_ratio": calculate_sharpe_ratio(returns),
+                "max_drawdown": calculate_max_drawdown(close_prices),
+                "var_95": calculate_var(returns, 0.95),
+                "beta": calculate_beta(df),
+                "avg_daily_return": np.mean(returns) * 100,
+                "positive_days_ratio": (np.sum(returns > 0) / len(returns)) * 100
+            }
+
+            # 风险分析
+            result["risk_analysis"] = {
+                "sharpe_ratio": calculate_sharpe_ratio(returns),
+                "max_drawdown": calculate_max_drawdown(close_prices),
+                "var_95": calculate_var(returns, 0.95),
+                "beta": calculate_beta(df),
+                "total_volatility": np.std(returns) * np.sqrt(252) * 100,
+                "downside_risk": None  # 需要实现downside_risk函数
+            }
+
+            # 计算下行风险（如果有足够数据）
+            if len(returns) > 0:
+                from ..utils.technical_indicators import calculate_downside_risk
+                result["risk_analysis"]["downside_risk"] = calculate_downside_risk(returns)
+
+            return result
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"深度量化分析异常: {str(e)}",
+                "stock_codes": stock_codes
+            }
+
+    @mcp.tool(tags={"量化分析"})
+    async def compute_technical_indicators(
+        stock_codes: List[str],
+        start_date: str = None,
+        end_date: str = None,
+    ) -> Dict[str, Any]:
+        """
+        【技术指标】单只标的的全套技术指标：MA/RSI/MACD/布林带/KDJ/威廉/CCI/ROC/TRIX/OBV/量比/ATR/相对强弱
+
+        聚焦技术面分析，不含风险/收益指标（请用 compute_risk_metrics）。
+        语义针对单只标的：stock_codes 仅取第一只。
+
+        Args:
+            stock_codes: 股票/指数代码列表，仅取第一只，例如 ["600519.SH"]
+            start_date: 开始日期，格式 YYYYMMDD，可选，默认为最近1年
+            end_date: 结束日期，格式 YYYYMMDD，可选，默认为昨天（自动回退到最近交易日）
+
+        Returns:
+            technical_indicators: 各项技术指标结果
+
+        Examples:
+            >>> await compute_technical_indicators(["000001"], "20230101", "20231231")
+        """
+        return await _technical_impl(stock_codes, start_date, end_date)
+
+    @mcp.tool(tags={"量化分析"})
+    async def compute_risk_metrics(
+        stock_codes: List[str],
+        start_date: str = None,
+        end_date: str = None,
+    ) -> Dict[str, Any]:
+        """
+        【风险收益】单只标的的风险调整收益与风险度量：区间/年化收益、波动率、Sharpe、最大回撤、VaR、Beta、下行风险
+
+        聚焦风险/收益分析，不含技术指标（请用 compute_technical_indicators）。
+        语义针对单只标的：stock_codes 仅取第一只。
+
+        Args:
+            stock_codes: 股票/指数代码列表，仅取第一只，例如 ["600519.SH"]
+            start_date: 开始日期，格式 YYYYMMDD，可选，默认为最近1年
+            end_date: 结束日期，格式 YYYYMMDD，可选，默认为昨天（自动回退到最近交易日）
+
+        Returns:
+            performance: 区间收益/年化/波动/Sharpe 等
+            risk_analysis: 最大回撤/VaR/Beta/下行风险等
+
+        Examples:
+            >>> await compute_risk_metrics(["000001"], "20230101", "20231231")
+        """
+        return await _risk_impl(stock_codes, start_date, end_date)
+
+    @mcp.tool(tags={"量化分析"})
     async def analyze_stock_performance(
         stock_codes: List[str],
         start_date: str = None,
@@ -847,9 +1161,9 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
         analysis_type: str = "comprehensive"
     ) -> Dict[str, Any]:
         """
-        【深度量化】综合技术指标(MA/RSI/MACD)、风险调整收益(Sharpe/Sortino)、回撤、相关性的全能分析
+        [建议直接用 compute_technical_indicators / compute_risk_metrics] 【深度量化】综合技术指标(MA/RSI/MACD)、风险调整收益(Sharpe/Sortino)、回撤的全能分析
 
-        集成技术指标、风险调整收益、相关性分析的全能工具。
+        集成技术指标、风险调整收益分析的全能工具，保留为兼容 facade。
 
         Args:
             stock_codes: 股票代码列表，例如 ["600519.SH", "000858.SZ"]
@@ -864,224 +1178,54 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
             >>> result = await analyze_stock_performance(["000001"], "20230101", "20231231", "comprehensive")
             >>> print(f"夏普比率: {result['performance']['sharpe_ratio']}")
         """
-        # 设置默认日期
-        if not start_date:
-            start_date = (datetime.now() - timedelta(days=365)).strftime('%Y%m%d')
-        if not end_date:
-            end_date = datetime.now().strftime('%Y%m%d')  # 🔥 先设为今天，后续会自动调整
-
-        # 参数验证
-        if not isinstance(stock_codes, list):
-            return {
-                "success": False,
-                "error": f"参数 stock_codes 必须是列表类型，当前收到: {type(stock_codes)} = {stock_codes[:100] if isinstance(stock_codes, str) else stock_codes}",
-                "hint": "请从 get_sector_top_stocks 工具的返回结果中提取 'codes' 字段，例如: result['codes']"
-            }
-
-        if not stock_codes:
-            return {
-                "success": False,
-                "error": "股票代码列表不能为空",
-                "hint": "请先调用 get_sector_top_stocks 获取股票代码列表，然后使用返回结果中的 'codes' 字段"
-            }
-        """
-        深度量化分析引擎（企业级）
-
-        集成技术指标、风险调整收益、相关性分析的全能工具。
-
-        Args:
-            stock_codes: 股票代码列表
-            start_date: 开始日期（YYYYMMDD）
-            end_date: 结束日期（YYYYMMDD）
-            analysis_type: 分析类型，comprehensive=综合分析，technical=技术指标，risk=风险分析
-
-        Returns:
-            深度量化分析结果
-
-        Examples:
-            >>> result = await analyze_stock_performance(["000001"], "20230101", "20231231", "comprehensive")
-            >>> print(f"夏普比率: {result['performance']['sharpe_ratio']}")
-        """
-        date_adjust_msg = ""  # 🔥 日期调整说明
-        try:
-            if not api.is_available():
-                return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
-            
-            # 🔥 日期容错：自动调整结束日期到最近交易日
-            end_date, date_adjust_msg = await _adjust_end_date_to_latest_trading_day(cache, api, end_date)
-            logger.info(f"📅 [analyze_stock_performance] Using date range: {start_date} - {end_date}")
-
-            if len(stock_codes) != 1:
-                return {"success": False, "error": "此工具目前只支持单只股票分析"}
-
-            stock_code = stock_codes[0]
-            ts_code = api.normalize_stock_code(stock_code)
-
-            # 获取历史数据（支持指数）
-            df = await fetch_daily_data(
-                cache, api, ts_code,
-                cache_type="daily",
-                start_date=start_date,
-                end_date=end_date
+        # 校验 analysis_type 枚举
+        valid_types = ["comprehensive", "technical", "risk"]
+        if analysis_type not in valid_types:
+            return build_error_response(
+                error=f"analysis_type 取值非法: {analysis_type!r}",
+                error_code=ErrorCode.INVALID_ENUM,
+                valid_values=valid_types,
             )
 
-            if df is None or df.empty:
-                return {"success": False, "error": f"未找到 {stock_code} 的历史数据"}
+        if analysis_type == "technical":
+            result = await _technical_impl(stock_codes, start_date, end_date)
+        elif analysis_type == "risk":
+            result = await _risk_impl(stock_codes, start_date, end_date)
+        else:
+            # comprehensive：两者都调并按原样合并返回
+            risk_result = await _risk_impl(stock_codes, start_date, end_date)
+            if not risk_result.get("success"):
+                return risk_result
+            tech_result = await _technical_impl(stock_codes, start_date, end_date)
+            if not tech_result.get("success"):
+                return tech_result
+            # 合并：以风险结果为骨架，补充技术指标块（骨架字段二者一致）
+            result = dict(risk_result)
+            result["technical_indicators"] = tech_result.get("technical_indicators", {})
 
-            df = df.sort_values('trade_date')
-            df.reset_index(drop=True, inplace=True)
-
-            # 计算 asset_type
-            _market = api.get_market(ts_code)
-            if _market == "HK":
-                _asset_type = "hk"
-            elif _market == "US":
-                _asset_type = "us"
-            elif api.is_index_code(ts_code):
-                _asset_type = "index"
-            else:
-                _asset_type = "stock"
-
-            result = {
-                "success": True,
-                "stock_code": stock_code,
-                "ts_code": ts_code,
-                "asset_type": _asset_type,
-                "start_date": start_date,
-                "end_date": end_date,
-                "analysis_type": analysis_type,
-                "data_points": len(df),
-                "timestamp": datetime.now().isoformat()
+        # 成功响应保留原顶层字段，并补回 analysis_type + deprecation 标记
+        if isinstance(result, dict) and result.get("success"):
+            result["analysis_type"] = analysis_type
+            result["deprecation"] = {
+                "replaced_by": "compute_technical_indicators / compute_risk_metrics",
+                "sunset": "2026-12-31",
+                "note": "拆分为更聚焦的子工具，comprehensive 仍可用",
             }
-            
-            # 🔥 添加日期调整说明（如果有的话）
-            if date_adjust_msg:
-                result["date_adjusted"] = True
-                result["date_adjust_message"] = date_adjust_msg
+        return result
 
-            close_prices = df['close'].values
-            # 区间基准价：优先用首日 pre_close（前一交易日收盘），正确覆盖假期跳空
-            if 'pre_close' in df.columns and pd.notna(df['pre_close'].iloc[0]):
-                _base_px = float(df['pre_close'].iloc[0])
-            else:
-                _base_px = float(close_prices[0])
-            returns = np.diff(np.log(close_prices))
-
-            # 基础业绩分析
-            if analysis_type in ["comprehensive", "performance"]:
-                result["performance"] = {
-                    "total_return": ((close_prices[-1] / _base_px) - 1) * 100,
-                    "annual_return": (((close_prices[-1] / _base_px) ** (252 / len(close_prices))) - 1) * 100,
-                    "volatility": np.std(returns) * np.sqrt(252) * 100,
-                    "sharpe_ratio": calculate_sharpe_ratio(returns),
-                    "max_drawdown": calculate_max_drawdown(close_prices),
-                    "var_95": calculate_var(returns, 0.95),
-                    "beta": calculate_beta(df),
-                    "avg_daily_return": np.mean(returns) * 100,
-                    "positive_days_ratio": (np.sum(returns > 0) / len(returns)) * 100
-                }
-
-            # 技术指标分析
-            if analysis_type in ["comprehensive", "technical"]:
-                result["technical_indicators"] = {}
-
-                # 移动平均线
-                ma_indicators = calculate_moving_averages(pd.Series(close_prices))
-                result["technical_indicators"]["moving_averages"] = ma_indicators
-
-                # RSI
-                if len(close_prices) >= 14:
-                    result["technical_indicators"]["rsi_14"] = calculate_rsi(pd.Series(close_prices), 14)
-                    result["technical_indicators"]["rsi_6"] = calculate_rsi(pd.Series(close_prices), 6)
-
-                # MACD
-                if len(close_prices) >= 34:
-                    result["technical_indicators"]["macd"] = calculate_macd(pd.Series(close_prices))
-
-                # 布林带
-                if len(close_prices) >= 20:
-                    result["technical_indicators"]["bollinger_bands"] = calculate_bollinger_bands(pd.Series(close_prices))
-
-                # KDJ指标
-                if len(df) >= 9:
-                    result["technical_indicators"]["kdj"] = calculate_kdj(df)
-
-                # 威廉指标
-                if len(df) >= 14:
-                    result["technical_indicators"]["williams_r"] = calculate_williams(df, 14)
-
-                # CCI指标
-                if len(df) >= 20:
-                    result["technical_indicators"]["cci"] = calculate_cci(df, 20)
-
-                # ROC指标
-                if len(close_prices) >= 12:
-                    result["technical_indicators"]["roc_12"] = calculate_roc(pd.Series(close_prices), 12)
-
-                # TRIX指标
-                if len(close_prices) >= 20:
-                    result["technical_indicators"]["trix"] = calculate_trix(pd.Series(close_prices))
-
-                # OBV指标
-                if len(df) >= 10:
-                    result["technical_indicators"]["obv"] = calculate_obv(df)
-
-                # 量比
-                if len(df) > 5:
-                    result["technical_indicators"]["volume_ratio"] = calculate_volume_ratio(df)
-
-                # ATR指标
-                if len(df) >= 14:
-                    result["technical_indicators"]["atr"] = calculate_atr(df, 14)
-
-                # 相对强弱
-                result["technical_indicators"]["relative_strength"] = calculate_relative_strength(df)
-
-            # 风险分析
-            if analysis_type in ["comprehensive", "risk"]:
-                result["risk_analysis"] = {
-                    "sharpe_ratio": calculate_sharpe_ratio(returns),
-                    "max_drawdown": calculate_max_drawdown(close_prices),
-                    "var_95": calculate_var(returns, 0.95),
-                    "beta": calculate_beta(df),
-                    "total_volatility": np.std(returns) * np.sqrt(252) * 100,
-                    "downside_risk": None  # 需要实现downside_risk函数
-                }
-
-                # 计算下行风险（如果有足够数据）
-                if len(returns) > 0:
-                    from ..utils.technical_indicators import calculate_downside_risk
-                    result["risk_analysis"]["downside_risk"] = calculate_downside_risk(returns)
-
-            return result
-
-        except Exception as e:
-            return {
-                "success": False,
-                "error": f"深度量化分析异常: {str(e)}",
-                "stock_codes": stock_codes
-            }
-
-    @mcp.tool(tags={"量化分析"})
-    async def calculate_metrics(
+    async def _corr_by_returns(
         stock_codes: List[str],
         start_date: str = None,
         end_date: str = None,
         metric: str = "close",
         as_file: bool = False,
-        include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
+        include_ui: bool = False,
+        tool_name: str = "calculate_metrics",
+        deprecation: bool = False,
     ) -> Dict[str, Any]:
-        """
-        【指标矩阵】基于价格/成交量/涨跌幅等字段计算多股票的相关系数矩阵
+        """基于收益率的多股相关性矩阵核心实现（原 calculate_metrics 逻辑）。
 
-        Args:
-            stock_codes: 股票代码列表，例如 ["600519.SH", "000858.SZ"]
-            start_date: 开始日期 (YYYYMMDD)，可选，默认为最近1年
-            end_date: 结束日期 (YYYYMMDD)，可选，默认为昨天
-            metric: 计算基于的字段 (close/vol/pct_chg)，默认为收盘价 close
-
-        Returns:
-            包含相关性矩阵和统计信息的字典
+        metric ∈ {close, vol, pct_chg}：透视所选字段后用日收益率计算相关性。
         """
         # 🔧 智能参数解析：处理MCP客户端参数传递错误的情况
         # 有时候客户端会把所有参数都传给第一个参数
@@ -1373,6 +1517,9 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                 result["date_adjusted"] = True
                 result["date_adjust_message"] = date_adjust_msg
 
+            if deprecation:
+                result["deprecation"] = dict(_DEPRECATION_MARKER)
+
             # 相关性矩阵展平为行
             _corr_rows = []
             for a, inner in (safe_corr_dict or {}).items():
@@ -1383,7 +1530,7 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
             return finalize_artifact_result(
                 rows=_corr_rows,
                 result=result,
-                tool_name="calculate_metrics",
+                tool_name=tool_name,
                 query_params={"stock_codes": ",".join(ts_codes_list or []), "start_date": start_date, "end_date": end_date, "metric": metric},
                 ui_uri="ui://findata/correlation-matrix",
                 as_file=as_file,
@@ -1393,3 +1540,114 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
 
         except Exception as e:
             return {"success": False, "error": f"计算指标异常: {str(e)}"}
+
+    @mcp.tool(tags={"量化分析"})
+    async def calculate_metrics(
+        stock_codes: List[str],
+        start_date: str = None,
+        end_date: str = None,
+        metric: str = "close",
+        as_file: bool = False,
+        include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
+    ) -> Dict[str, Any]:
+        """
+        [DEPRECATED→compute_correlation] 【指标矩阵】基于价格/成交量/涨跌幅等字段计算多股票的相关系数矩阵（收益率口径）
+
+        ⚠️ 已废弃，请改用 compute_correlation(basis='returns', metric='close'|'vol'|'pct_chg')。
+        行为与本工具完全一致，本工具保留为兼容 facade。
+
+        Args:
+            stock_codes: 股票代码列表，例如 ["600519.SH", "000858.SZ"]
+            start_date: 开始日期 (YYYYMMDD)，可选，默认为最近1年
+            end_date: 结束日期 (YYYYMMDD)，可选，默认为昨天
+            metric: 计算基于的字段 (close/vol/pct_chg)，默认为收盘价 close
+
+        Returns:
+            包含相关性矩阵和统计信息的字典
+        """
+        # facade：委托私有核心实现（行为不变），仅追加 deprecation 标记
+        return await _corr_by_returns(
+            stock_codes=stock_codes,
+            start_date=start_date,
+            end_date=end_date,
+            metric=metric,
+            as_file=as_file,
+            include_ui=include_ui,
+            tool_name="calculate_metrics",
+            deprecation=True,
+        )
+
+    @mcp.tool(tags={"量化分析"})
+    async def compute_correlation(
+        stock_codes: List[str],
+        start_date: str = None,
+        end_date: str = None,
+        basis: str = "price",
+        mode: str = "matrix",
+        metric: str = "close",
+        as_file: bool = False,
+        include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
+    ) -> Dict[str, Any]:
+        """
+        【相关性/Beta 统一入口】计算多只标的的相关性矩阵、贝塔系数或区间业绩对比，自动对齐交易日
+
+        这是相关性 / Beta / 业绩对比分析的统一入口，取代旧的
+        analyze_price_correlation（基于价格）与 calculate_metrics（基于收益率）。
+
+        Args:
+            stock_codes: 股票/指数代码列表，至少 2 个，例如 ["600519.SH", "000858.SZ"]
+            start_date: 开始日期 YYYYMMDD，可选，默认最近 1 年
+            end_date: 结束日期 YYYYMMDD，可选，默认昨天（自动回退到最近交易日）
+            basis: 计算口径
+                - 'price'   : 基于价格序列（对应原 analyze_price_correlation），支持 mode
+                - 'returns' : 基于日收益率口径（对应原 calculate_metrics）
+            mode: 仅当 basis='price' 时生效，分析类型
+                - 'matrix'     : 相关性矩阵（默认）
+                - 'beta'       : 贝塔系数（相对第一只标的）
+                - 'comparison' : 区间业绩对比（收益/波动/Sharpe/回撤）
+            metric: 仅当 basis='returns' 时生效，透视字段 (close/vol/pct_chg)，默认 close
+
+        Returns:
+            相关性 / Beta / 业绩对比结果
+
+        Examples:
+            >>> await compute_correlation(["600519.SH", "000858.SZ"], basis="price", mode="matrix")
+            >>> await compute_correlation(["600519.SH", "000858.SZ"], basis="price", mode="beta")
+            >>> await compute_correlation(["600519.SH", "000858.SZ"], basis="returns", metric="close")
+        """
+        valid_basis = ["price", "returns"]
+        if basis not in valid_basis:
+            return build_error_response(
+                error=f"basis 取值非法: {basis!r}",
+                error_code=ErrorCode.INVALID_ENUM,
+                valid_values=valid_basis,
+            )
+
+        if basis == "returns":
+            return await _corr_by_returns(
+                stock_codes=stock_codes,
+                start_date=start_date,
+                end_date=end_date,
+                metric=metric,
+                as_file=as_file,
+                include_ui=include_ui,
+                tool_name="compute_correlation",
+            )
+
+        # basis == "price"
+        valid_mode = ["matrix", "beta", "comparison"]
+        if mode not in valid_mode:
+            return build_error_response(
+                error=f"mode 取值非法: {mode!r}",
+                error_code=ErrorCode.INVALID_ENUM,
+                valid_values=valid_mode,
+            )
+        return await _corr_by_price(
+            stock_codes=stock_codes,
+            start_date=start_date,
+            end_date=end_date,
+            mode=mode,
+            as_file=as_file,
+            include_ui=include_ui,
+            tool_name="compute_correlation",
+        )

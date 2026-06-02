@@ -26,6 +26,7 @@ from ..utils.response import build_success_response, build_error_response, build
 from ..utils.errors import ErrorCode
 from ..utils.ui_hint import append_hint_to_summary
 from ..utils.artifact_payload import finalize_artifact_result, AS_FILE_INCLUDE_UI_DECISION_GUIDE
+from .routing import attach_next_steps
 from .constants import INCLUDE_UI_DESCRIPTION
 
 logger = logging.getLogger(__name__)
@@ -299,6 +300,7 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
                 "meta": meta,
                 "timestamp": datetime.now().isoformat()
             }
+            structured = attach_next_steps(structured, "get_market_summary")
 
             _ms_rows = [data] if isinstance(data, dict) else list(data or [])
             return finalize_artifact_result(
@@ -369,6 +371,16 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
             }
         """
         try:
+            # 先校验 metric 枚举（参数校验前置，不依赖 API 可用性）
+            _valid_metrics = ["pct_chg", "amount", "turnover_rate"]
+            if metric not in _valid_metrics:
+                return build_error_response(
+                    error=f"不支持的排序指标: {metric}，请使用 {'/'.join(_valid_metrics)}",
+                    error_code=ErrorCode.INVALID_ENUM,
+                    valid_values=_valid_metrics,
+                    data={"metric": metric},
+                )
+
             if not api.is_available():
                 return build_error_response("数据服务不可用（Pro 接口未配置）", ErrorCode.PRO_REQUIRED)
 
@@ -503,6 +515,7 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
                 "meta": meta,
                 "timestamp": datetime.now().isoformat()
             }
+            structured = attach_next_steps(structured, "get_market_extremes")
 
             return ToolResult(
                 content=[TextContent(type="text", text=summary)],
@@ -751,6 +764,7 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
                 "meta": meta,
                 "timestamp": datetime.now().isoformat()
             }
+            structured = attach_next_steps(structured, "get_batch_pct_chg")
 
             return finalize_artifact_result(
                 rows=results or [],

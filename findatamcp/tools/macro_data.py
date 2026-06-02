@@ -31,6 +31,7 @@ from ..utils.large_data_handler import merge_large_data_payload, prepare_large_d
 from ..utils.ui_hint import append_hint_to_summary, attach_hint_to_dict, build_ui_hint
 from ..utils.artifact_payload import finalize_artifact_result, build_artifact_fields, AS_FILE_INCLUDE_UI_DECISION_GUIDE
 from .constants import INCLUDE_UI_DESCRIPTION
+from .routing import attach_next_steps
 
 logger = logging.getLogger(__name__)
 
@@ -383,6 +384,7 @@ def register_macro_tools(mcp: FastMCP, api: TushareAPI):
                 {"indicator": k, **(v if isinstance(v, dict) else {"value": v})}
                 for k, v in result.items() if v is not None
             ]
+            structured = attach_next_steps(structured, "get_macro_summary")
             return finalize_artifact_result(
                 rows=snapshot_rows,
                 result=structured,

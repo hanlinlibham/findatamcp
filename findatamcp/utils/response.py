@@ -163,24 +163,47 @@ def build_success_response(
 
 
 def build_error_response(
-    error: str,
+    error: Optional[str] = None,
     error_code: Optional[str] = None,
+    hint: Optional[str] = None,
+    valid_values: Optional[Any] = None,
     data: Any = None
 ) -> Dict[str, Any]:
     """
-    快速构建错误响应
+    快速构建错误响应（带可路由 hint + 枚举白名单回显）
+
+    面向 LLM 消费者：错误返回总应携带一条"照做即可恢复"的 hint。
+    - 只传 error_code 时，error 文案自动取自 ErrorCode.get_message。
+    - 不传 hint 时，回退到 ErrorCode.get_default_hint(error_code)（可能为空）。
+    - 枚举非法 / 实体非法时，传 valid_values 回显合法取值清单，便于 LLM 直接改参。
 
     Args:
-        error: 错误信息
-        error_code: 错误码
+        error: 错误信息（缺省时按 error_code 自动生成）
+        error_code: 错误码（见 ErrorCode）
+        hint: 可路由的恢复建议（缺省回退到该 code 的默认 hint）
+        valid_values: 合法取值清单（枚举非法/实体非法时回显）
         data: 附加数据（可选）
 
     Returns:
-        标准化错误响应
+        标准化错误响应：{success:False, error, error_code, hint?, valid_values?, ...}
     """
-    return build_response(
+    # 延迟导入避免循环依赖
+    from .errors import ErrorCode
+
+    if error is None and error_code:
+        error = ErrorCode.get_message(error_code)
+    if hint is None and error_code:
+        default_hint = ErrorCode.get_default_hint(error_code)
+        hint = default_hint or None
+
+    response = build_response(
         success=False,
         data=data,
         error=error,
         error_code=error_code
     )
+    if hint:
+        response["hint"] = hint
+    if valid_values is not None:
+        response["valid_values"] = valid_values
+    return response
