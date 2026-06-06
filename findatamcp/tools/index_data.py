@@ -214,10 +214,19 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
                 )
 
             if df is None or df.empty:
+                # tushare 指数估值仅覆盖宽基指数与申万行业指数(.SI)；主题/概念指数(.CSI 等)无直接 PE/PB。
+                # 不返回死路，给出成分聚合路径，避免上层 agent 卡死。
                 return {
                     "success": False,
                     "error": f"未找到指数 {ts_code} 的估值数据",
-                    "ts_code": ts_code
+                    "error_code": "no_index_valuation",
+                    "ts_code": ts_code,
+                    "hint": "tushare 指数估值仅覆盖宽基指数与申万行业指数(.SI)；主题/概念指数(如 .CSI)无直接 PE/PB。请改用成分聚合：get_index_weight(ts_code) 取成分 → get_stock_valuation(成分) 看个股估值 / get_batch_pct_chg(成分) 看区间涨跌。",
+                    "next_steps": [
+                        {"intent": "取指数成分", "tool": "get_index_weight"},
+                        {"intent": "成分估值", "tool": "get_stock_valuation"},
+                        {"intent": "成分区间涨跌", "tool": "get_batch_pct_chg"},
+                    ],
                 }
 
             df = df.sort_values('trade_date')
