@@ -14,9 +14,11 @@ from fastmcp import FastMCP
 from fastmcp.server.apps import AppConfig
 from fastmcp.tools.tool import ToolResult
 from mcp.types import TextContent
-from pydantic import Field
+from pydantic import Field, BeforeValidator
 import pandas as pd
 import numpy as np
+import json
+import re
 import logging
 
 from ..cache import cache
@@ -30,6 +32,28 @@ from .routing import attach_next_steps
 from .constants import INCLUDE_UI_DESCRIPTION
 
 logger = logging.getLogger(__name__)
+
+
+def _coerce_code_list(v):
+    """容错：模型有时把代码列表序列化成 JSON 字符串或逗号/空格分隔串传入。"""
+    if v is None or isinstance(v, list):
+        return v
+    if isinstance(v, str):
+        t = v.strip()
+        if not t:
+            return None
+        if t.startswith("["):
+            try:
+                parsed = json.loads(t)
+                if isinstance(parsed, list):
+                    return [str(x).strip() for x in parsed]
+            except Exception:
+                pass
+        return [p.strip() for p in re.split(r"[,\s]+", t) if p.strip()]
+    return v
+
+
+CodeList = Annotated[Optional[List[str]], BeforeValidator(_coerce_code_list)]
 
 MARKET_DASHBOARD_APP = AppConfig(
     resource_uri="ui://findata/market-dashboard",
@@ -528,13 +552,13 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
 
     @mcp.tool(tags={"市场统计"})
     async def get_batch_pct_chg(
-        stock_codes: Optional[List[str]] = None,
+        stock_codes: CodeList = None,
         start_date: str = "",
         end_date: Optional[str] = None,
         as_file: bool = False,
         include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
-        ts_codes: Optional[List[str]] = None,  # 兼容别名
-        codes: Optional[List[str]] = None  # 兼容别名
+        ts_codes: CodeList = None,  # 兼容别名
+        codes: CodeList = None  # 兼容别名
     ) -> Union[ToolResult, Dict[str, Any]]:
         """
         【批量涨跌幅】计算多只股票的区间累计涨跌幅，并返回均值
