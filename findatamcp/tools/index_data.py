@@ -3,7 +3,7 @@
 提供指数专属的MCP工具，包括：
 - get_index_weight: 获取指数成分股及权重
 - get_index_valuation: 获取指数估值数据（PE/PB/换手率/市值）
-- get_industry_overview: 行业分类与成分查询（申万/中信）
+- get_industry_overview: 行业分类与成分查询（行业分析默认申万；中信仅用户显式要求时）
 """
 
 from typing import Annotated, Literal, Dict, Any, Optional
@@ -269,8 +269,11 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
     ) -> Dict[str, Any]:
         """【行业分类】查询申万/中信 L1/L2/L3 行业分类树或行业成分股列表
 
+        ⭐ 行业分析/估值默认走申万口径(sw_members)：申万行业指数自带 PE/PB(见 get_index_valuation)；
+           中信(ci_members)在 tushare 无指数估值数据，仅当用户明确要"中信口径/中信一级"时才用，不要主动把行业(尤其估值)查询引导到中信。
+
         Args:
-            action: 仅支持以下 3 个值（区分大小写）：classify(行业分类列表) / sw_members(申万成分股) / ci_members(中信成分股)。不要传其他值
+            action: 仅支持以下 3 个值（区分大小写）：classify(行业分类列表) / sw_members(申万成分股,行业分析默认首选) / ci_members(中信成分股,仅用户显式要求中信口径时用)。不要传其他值
             level: 行业级别，仅 classify 用，L1/L2/L3
             src: 分类来源，仅 classify 用，如 "SW2021"
             index_code: 行业指数代码，如 "801010.SI"
