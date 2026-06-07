@@ -9,13 +9,23 @@ MCP Apps UI 资源模块
 - ui://tushare/moneyflow-chart: 资金流向多线折线图
 
 参考：MCP Apps 规范 (SEP-1865)
-协议版本：2025-06-18
+协议版本：2026-01-26（FastMCP 原生 fastmcp.server.apps 对齐官方 wire）
 """
 
 import logging
 from fastmcp import FastMCP
+from fastmcp.server.apps import AppConfig, ResourceCSP, UI_MIME_TYPE
 
 logger = logging.getLogger(__name__)
+
+# 所有 ui:// 资源共用的 AppConfig：自包含 HTML（ECharts 本地内联），无外部连接/资源，
+# 故 csp 全空（host 据此施加 restrictive CSP）。FastMCP 据此生成合规 _meta.ui。
+# mime_type 统一用 UI_MIME_TYPE = "text/html;profile=mcp-app"（profile 走 mimeType，
+# 不再塞进 _meta.ui，与官方 2026-01-26 spec 一致）。
+_UI_APP = AppConfig(
+    csp=ResourceCSP(connect_domains=[], resource_domains=[]),
+    prefers_border=True,
+)
 
 # ECharts 5 — loaded from local file (no CDN dependency)
 import pathlib as _pathlib
@@ -91,7 +101,7 @@ body {
     }
     if (msg.id !== undefined && msg.method === 'ui/initialize') {
       window.parent.postMessage({ jsonrpc:'2.0', id: msg.id, result: {
-        protocolVersion: '2025-06-18',
+        protocolVersion: '2026-01-26',
         appCapabilities: { availableDisplayModes: ['inline','fullscreen'] }
       }}, '*');
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
@@ -240,7 +250,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
       for (var k in vars) if (vars[k]) document.documentElement.style.setProperty('--'+k, vars[k]);
     }
     if (msg.id !== undefined && msg.method === 'ui/initialize') {
-      window.parent.postMessage({ jsonrpc:'2.0', id:msg.id, result:{ protocolVersion:'2025-06-18', appCapabilities:{ availableDisplayModes:['inline','fullscreen'] } } }, '*');
+      window.parent.postMessage({ jsonrpc:'2.0', id:msg.id, result:{ protocolVersion:'2026-01-26', appCapabilities:{ availableDisplayModes:['inline','fullscreen'] } } }, '*');
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
     }
   });
@@ -381,7 +391,7 @@ tr:hover td { background: var(--color-row-hover); }
       for (var k in vars) if (vars[k]) document.documentElement.style.setProperty('--'+k, vars[k]);
     }
     if (msg.id !== undefined && msg.method === 'ui/initialize') {
-      window.parent.postMessage({ jsonrpc:'2.0', id:msg.id, result:{ protocolVersion:'2025-06-18', appCapabilities:{ availableDisplayModes:['inline','fullscreen'] } } }, '*');
+      window.parent.postMessage({ jsonrpc:'2.0', id:msg.id, result:{ protocolVersion:'2026-01-26', appCapabilities:{ availableDisplayModes:['inline','fullscreen'] } } }, '*');
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
     }
   });
@@ -592,7 +602,7 @@ body {
     }
     if (msg.id !== undefined && msg.method === 'ui/initialize') {
       window.parent.postMessage({ jsonrpc:'2.0', id: msg.id, result: {
-        protocolVersion: '2025-06-18',
+        protocolVersion: '2026-01-26',
         appCapabilities: { availableDisplayModes: ['inline','fullscreen'] }
       }}, '*');
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
@@ -900,7 +910,7 @@ body {
     }
     if (msg.id !== undefined && msg.method === 'ui/initialize') {
       window.parent.postMessage({ jsonrpc:'2.0', id: msg.id, result: {
-        protocolVersion: '2025-06-18',
+        protocolVersion: '2026-01-26',
         appCapabilities: { availableDisplayModes: ['inline','fullscreen'] }
       }}, '*');
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
@@ -1156,7 +1166,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
       applyTheme(msg.params.styles.variables);
     }
     if (msg.id !== undefined && msg.method === 'ui/initialize') {
-      window.parent.postMessage({ jsonrpc:'2.0', id: msg.id, result:{ protocolVersion:'2025-06-18', appCapabilities:{ availableDisplayModes:['inline','fullscreen'] } } }, '*');
+      window.parent.postMessage({ jsonrpc:'2.0', id: msg.id, result:{ protocolVersion:'2026-01-26', appCapabilities:{ availableDisplayModes:['inline','fullscreen'] } } }, '*');
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
     }
   });
@@ -1323,7 +1333,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
       applyTheme(msg.params.styles.variables);
     }
     if (msg.id !== undefined && msg.method === 'ui/initialize') {
-      window.parent.postMessage({ jsonrpc:'2.0', id: msg.id, result:{ protocolVersion:'2025-06-18', appCapabilities:{ availableDisplayModes:['inline','fullscreen'] } } }, '*');
+      window.parent.postMessage({ jsonrpc:'2.0', id: msg.id, result:{ protocolVersion:'2026-01-26', appCapabilities:{ availableDisplayModes:['inline','fullscreen'] } } }, '*');
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
     }
   });
@@ -1500,7 +1510,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
       applyTheme(msg.params.styles.variables);
     }
     if (msg.id !== undefined && msg.method === 'ui/initialize') {
-      window.parent.postMessage({ jsonrpc:'2.0', id: msg.id, result:{ protocolVersion:'2025-06-18', appCapabilities:{ availableDisplayModes:['inline','fullscreen'] } } }, '*');
+      window.parent.postMessage({ jsonrpc:'2.0', id: msg.id, result:{ protocolVersion:'2026-01-26', appCapabilities:{ availableDisplayModes:['inline','fullscreen'] } } }, '*');
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
     }
   });
@@ -1698,7 +1708,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
       applyTheme(msg.params.styles.variables);
     }
     if (msg.id !== undefined && msg.method === 'ui/initialize') {
-      window.parent.postMessage({ jsonrpc:'2.0', id: msg.id, result:{ protocolVersion:'2025-06-18', appCapabilities:{ availableDisplayModes:['inline','fullscreen'] } } }, '*');
+      window.parent.postMessage({ jsonrpc:'2.0', id: msg.id, result:{ protocolVersion:'2026-01-26', appCapabilities:{ availableDisplayModes:['inline','fullscreen'] } } }, '*');
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
     }
   });
@@ -1816,17 +1826,8 @@ def register_ui_app_resources(mcp: FastMCP):
         "ui://findata/market-dashboard",
         name="市场概况仪表板",
         description="A股市场整体涨跌、成交、涨停跌停统计的交互式仪表板（ECharts）",
-        mime_type="text/html",
-        meta={
-            "ui": {
-                "profile": "mcp-app",
-                "csp": {
-                    "connectDomains": [],
-                    "resourceDomains": []
-                },
-                "prefersBorder": True
-            }
-        }
+        mime_type=UI_MIME_TYPE,
+        app=_UI_APP,
     )
     def market_dashboard_resource() -> str:
         return MARKET_DASHBOARD_HTML.replace("/* ECHARTS_PLACEHOLDER */", _ECHARTS_JS)
@@ -1835,16 +1836,8 @@ def register_ui_app_resources(mcp: FastMCP):
         "ui://tushare/macro-panel",
         name="宏观经济面板",
         description="GDP、CPI、PMI、M2、LPR 等宏观指标的交互式面板",
-        mime_type="text/html",
-        meta={
-            "ui": {
-                "csp": {
-                    "connectDomains": [],
-                    "resourceDomains": []
-                },
-                "prefersBorder": True
-            }
-        }
+        mime_type=UI_MIME_TYPE,
+        app=_UI_APP,
     )
     def macro_panel_resource() -> str:
         return MACRO_PANEL_HTML
@@ -1853,16 +1846,8 @@ def register_ui_app_resources(mcp: FastMCP):
         "ui://tushare/data-table",
         name="数据表格",
         description="可排序、可筛选、可导出 CSV 的通用交互式数据表格",
-        mime_type="text/html",
-        meta={
-            "ui": {
-                "csp": {
-                    "connectDomains": [],
-                    "resourceDomains": []
-                },
-                "prefersBorder": True
-            }
-        }
+        mime_type=UI_MIME_TYPE,
+        app=_UI_APP,
     )
     def data_table_resource() -> str:
         return DATA_TABLE_HTML
@@ -1871,16 +1856,8 @@ def register_ui_app_resources(mcp: FastMCP):
         "ui://findata/macro-panel",
         name="宏观经济面板（findata）",
         description="findata 命名空间下的宏观经济指标面板",
-        mime_type="text/html",
-        meta={
-            "ui": {
-                "csp": {
-                    "connectDomains": [],
-                    "resourceDomains": []
-                },
-                "prefersBorder": True
-            }
-        }
+        mime_type=UI_MIME_TYPE,
+        app=_UI_APP,
     )
     def macro_panel_resource_findata() -> str:
         return MACRO_PANEL_HTML
@@ -1889,16 +1866,8 @@ def register_ui_app_resources(mcp: FastMCP):
         "ui://findata/data-table",
         name="数据表格（findata）",
         description="findata 命名空间下的通用交互式数据表格",
-        mime_type="text/html",
-        meta={
-            "ui": {
-                "csp": {
-                    "connectDomains": [],
-                    "resourceDomains": []
-                },
-                "prefersBorder": True
-            }
-        }
+        mime_type=UI_MIME_TYPE,
+        app=_UI_APP,
     )
     def data_table_resource_findata() -> str:
         return DATA_TABLE_HTML
@@ -1907,16 +1876,8 @@ def register_ui_app_resources(mcp: FastMCP):
         "ui://findata/kline-chart",
         name="K线图",
         description="股票K线图（OHLC+成交量+均线），支持缩放",
-        mime_type="text/html",
-        meta={
-            "ui": {
-                "csp": {
-                    "connectDomains": [],
-                    "resourceDomains": []
-                },
-                "prefersBorder": True
-            }
-        }
+        mime_type=UI_MIME_TYPE,
+        app=_UI_APP,
     )
     def candlestick_chart_resource() -> str:
         return CANDLESTICK_CHART_HTML.replace("/* ECHARTS_PLACEHOLDER */", _ECHARTS_JS)
@@ -1925,16 +1886,8 @@ def register_ui_app_resources(mcp: FastMCP):
         "ui://findata/moneyflow-chart",
         name="资金流向图",
         description="个股资金流向多线折线图",
-        mime_type="text/html",
-        meta={
-            "ui": {
-                "csp": {
-                    "connectDomains": [],
-                    "resourceDomains": []
-                },
-                "prefersBorder": True
-            }
-        }
+        mime_type=UI_MIME_TYPE,
+        app=_UI_APP,
     )
     def moneyflow_chart_resource() -> str:
         return MONEYFLOW_CHART_HTML.replace("/* ECHARTS_PLACEHOLDER */", _ECHARTS_JS)
@@ -1943,16 +1896,8 @@ def register_ui_app_resources(mcp: FastMCP):
         "ui://findata/fund-nav-chart",
         name="基金净值图",
         description="基金单位净值、累计净值、复权净值走势图",
-        mime_type="text/html",
-        meta={
-            "ui": {
-                "csp": {
-                    "connectDomains": [],
-                    "resourceDomains": []
-                },
-                "prefersBorder": True
-            }
-        }
+        mime_type=UI_MIME_TYPE,
+        app=_UI_APP,
     )
     def fund_nav_chart_resource() -> str:
         return FUND_NAV_CHART_HTML.replace("/* ECHARTS_PLACEHOLDER */", _ECHARTS_JS)
@@ -1961,16 +1906,8 @@ def register_ui_app_resources(mcp: FastMCP):
         "ui://findata/correlation-matrix",
         name="相关性矩阵",
         description="多资产相关性热力图和归一化价格走势",
-        mime_type="text/html",
-        meta={
-            "ui": {
-                "csp": {
-                    "connectDomains": [],
-                    "resourceDomains": []
-                },
-                "prefersBorder": True
-            }
-        }
+        mime_type=UI_MIME_TYPE,
+        app=_UI_APP,
     )
     def correlation_matrix_resource() -> str:
         return CORRELATION_MATRIX_HTML.replace("/* ECHARTS_PLACEHOLDER */", _ECHARTS_JS)
@@ -1979,16 +1916,8 @@ def register_ui_app_resources(mcp: FastMCP):
         "ui://findata/series-chart",
         name="通用趋势图",
         description="适用于宏观数据、指数估值等多面板时间序列图",
-        mime_type="text/html",
-        meta={
-            "ui": {
-                "csp": {
-                    "connectDomains": [],
-                    "resourceDomains": []
-                },
-                "prefersBorder": True
-            }
-        }
+        mime_type=UI_MIME_TYPE,
+        app=_UI_APP,
     )
     def series_chart_resource() -> str:
         return SERIES_CHART_HTML.replace("/* ECHARTS_PLACEHOLDER */", _ECHARTS_JS)
@@ -1997,16 +1926,8 @@ def register_ui_app_resources(mcp: FastMCP):
         "ui://findata/financial-metrics-chart",
         name="财务指标趋势图",
         description="财务指标摘要卡片与多指标趋势图",
-        mime_type="text/html",
-        meta={
-            "ui": {
-                "csp": {
-                    "connectDomains": [],
-                    "resourceDomains": []
-                },
-                "prefersBorder": True
-            }
-        }
+        mime_type=UI_MIME_TYPE,
+        app=_UI_APP,
     )
     def financial_metrics_chart_resource() -> str:
         return FINANCIAL_METRICS_CHART_HTML.replace("/* ECHARTS_PLACEHOLDER */", _ECHARTS_JS)
@@ -2017,17 +1938,8 @@ def register_ui_app_resources(mcp: FastMCP):
         "ui://tushare/market-dashboard",
         name="市场概况仪表板（兼容别名）",
         description="兼容旧 ui://tushare 命名空间，内容同 ui://findata/market-dashboard",
-        mime_type="text/html",
-        meta={
-            "ui": {
-                "profile": "mcp-app",
-                "csp": {
-                    "connectDomains": [],
-                    "resourceDomains": []
-                },
-                "prefersBorder": True
-            }
-        }
+        mime_type=UI_MIME_TYPE,
+        app=_UI_APP,
     )
     def market_dashboard_resource_legacy() -> str:
         return MARKET_DASHBOARD_HTML.replace("/* ECHARTS_PLACEHOLDER */", _ECHARTS_JS)
@@ -2036,16 +1948,8 @@ def register_ui_app_resources(mcp: FastMCP):
         "ui://tushare/kline-chart",
         name="K线图（兼容别名）",
         description="兼容旧 ui://tushare 命名空间，内容同 ui://findata/kline-chart",
-        mime_type="text/html",
-        meta={
-            "ui": {
-                "csp": {
-                    "connectDomains": [],
-                    "resourceDomains": []
-                },
-                "prefersBorder": True
-            }
-        }
+        mime_type=UI_MIME_TYPE,
+        app=_UI_APP,
     )
     def candlestick_chart_resource_legacy() -> str:
         return CANDLESTICK_CHART_HTML.replace("/* ECHARTS_PLACEHOLDER */", _ECHARTS_JS)
@@ -2054,16 +1958,8 @@ def register_ui_app_resources(mcp: FastMCP):
         "ui://tushare/moneyflow-chart",
         name="资金流向图（兼容别名）",
         description="兼容旧 ui://tushare 命名空间，内容同 ui://findata/moneyflow-chart",
-        mime_type="text/html",
-        meta={
-            "ui": {
-                "csp": {
-                    "connectDomains": [],
-                    "resourceDomains": []
-                },
-                "prefersBorder": True
-            }
-        }
+        mime_type=UI_MIME_TYPE,
+        app=_UI_APP,
     )
     def moneyflow_chart_resource_legacy() -> str:
         return MONEYFLOW_CHART_HTML.replace("/* ECHARTS_PLACEHOLDER */", _ECHARTS_JS)
