@@ -99,12 +99,12 @@ body {
           applyTheme(msg.params.styles.variables);
         break;
     }
-    if (msg.id !== undefined && msg.method === 'ui/initialize') {
-      window.parent.postMessage({ jsonrpc:'2.0', id: msg.id, result: {
-        protocolVersion: '2026-01-26',
-        appCapabilities: { availableDisplayModes: ['inline','fullscreen'] }
-      }}, '*');
+    if (msg.id === 'view-init' && msg.result) {
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
+      var _hc = msg.result.hostContext || {};
+      var _vars = _hc.styles && _hc.styles.variables;
+      if (_vars) { for (var _k in _vars) if (_vars[_k]) document.documentElement.style.setProperty('--'+_k, _vars[_k]); }
+      return;
     }
   });
 
@@ -192,6 +192,7 @@ body {
   }
 })();
 </script>
+<script>window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
@@ -249,9 +250,12 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
       var vars = msg.params.styles.variables;
       for (var k in vars) if (vars[k]) document.documentElement.style.setProperty('--'+k, vars[k]);
     }
-    if (msg.id !== undefined && msg.method === 'ui/initialize') {
-      window.parent.postMessage({ jsonrpc:'2.0', id:msg.id, result:{ protocolVersion:'2026-01-26', appCapabilities:{ availableDisplayModes:['inline','fullscreen'] } } }, '*');
+    if (msg.id === 'view-init' && msg.result) {
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
+      var _hc = msg.result.hostContext || {};
+      var _vars = _hc.styles && _hc.styles.variables;
+      if (_vars) { for (var _k in _vars) if (_vars[_k]) document.documentElement.style.setProperty('--'+_k, _vars[_k]); }
+      return;
     }
   });
 
@@ -330,6 +334,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
   }
 })();
 </script>
+<script>window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
@@ -390,9 +395,12 @@ tr:hover td { background: var(--color-row-hover); }
       var vars = msg.params.styles.variables;
       for (var k in vars) if (vars[k]) document.documentElement.style.setProperty('--'+k, vars[k]);
     }
-    if (msg.id !== undefined && msg.method === 'ui/initialize') {
-      window.parent.postMessage({ jsonrpc:'2.0', id:msg.id, result:{ protocolVersion:'2026-01-26', appCapabilities:{ availableDisplayModes:['inline','fullscreen'] } } }, '*');
+    if (msg.id === 'view-init' && msg.result) {
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
+      var _hc = msg.result.hostContext || {};
+      var _vars = _hc.styles && _hc.styles.variables;
+      if (_vars) { for (var _k in _vars) if (_vars[_k]) document.documentElement.style.setProperty('--'+_k, _vars[_k]); }
+      return;
     }
   });
 
@@ -536,6 +544,7 @@ tr:hover td { background: var(--color-row-hover); }
   }
 })();
 </script>
+<script>window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
@@ -600,12 +609,12 @@ body {
           applyTheme(msg.params.styles.variables);
         break;
     }
-    if (msg.id !== undefined && msg.method === 'ui/initialize') {
-      window.parent.postMessage({ jsonrpc:'2.0', id: msg.id, result: {
-        protocolVersion: '2026-01-26',
-        appCapabilities: { availableDisplayModes: ['inline','fullscreen'] }
-      }}, '*');
+    if (msg.id === 'view-init' && msg.result) {
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
+      var _hc = msg.result.hostContext || {};
+      var _vars = _hc.styles && _hc.styles.variables;
+      if (_vars) { for (var _k in _vars) if (_vars[_k]) document.documentElement.style.setProperty('--'+_k, _vars[_k]); }
+      return;
     }
   });
 
@@ -850,6 +859,7 @@ body {
   }
 })();
 </script>
+<script>window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
@@ -908,12 +918,12 @@ body {
           applyTheme(msg.params.styles.variables);
         break;
     }
-    if (msg.id !== undefined && msg.method === 'ui/initialize') {
-      window.parent.postMessage({ jsonrpc:'2.0', id: msg.id, result: {
-        protocolVersion: '2026-01-26',
-        appCapabilities: { availableDisplayModes: ['inline','fullscreen'] }
-      }}, '*');
+    if (msg.id === 'view-init' && msg.result) {
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
+      var _hc = msg.result.hostContext || {};
+      var _vars = _hc.styles && _hc.styles.variables;
+      if (_vars) { for (var _k in _vars) if (_vars[_k]) document.documentElement.style.setProperty('--'+_k, _vars[_k]); }
+      return;
     }
   });
 
@@ -1114,6 +1124,7 @@ body {
   }
 })();
 </script>
+<script>window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
@@ -1165,9 +1176,12 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
     if (msg.method === 'ui/notifications/host-context-changed' && msg.params && msg.params.styles && msg.params.styles.variables) {
       applyTheme(msg.params.styles.variables);
     }
-    if (msg.id !== undefined && msg.method === 'ui/initialize') {
-      window.parent.postMessage({ jsonrpc:'2.0', id: msg.id, result:{ protocolVersion:'2026-01-26', appCapabilities:{ availableDisplayModes:['inline','fullscreen'] } } }, '*');
+    if (msg.id === 'view-init' && msg.result) {
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
+      var _hc = msg.result.hostContext || {};
+      var _vars = _hc.styles && _hc.styles.variables;
+      if (_vars) { for (var _k in _vars) if (_vars[_k]) document.documentElement.style.setProperty('--'+_k, _vars[_k]); }
+      return;
     }
   });
 
@@ -1278,6 +1292,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
   }
 })();
 </script>
+<script>window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
@@ -1332,9 +1347,12 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
     if (msg.method === 'ui/notifications/host-context-changed' && msg.params && msg.params.styles && msg.params.styles.variables) {
       applyTheme(msg.params.styles.variables);
     }
-    if (msg.id !== undefined && msg.method === 'ui/initialize') {
-      window.parent.postMessage({ jsonrpc:'2.0', id: msg.id, result:{ protocolVersion:'2026-01-26', appCapabilities:{ availableDisplayModes:['inline','fullscreen'] } } }, '*');
+    if (msg.id === 'view-init' && msg.result) {
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
+      var _hc = msg.result.hostContext || {};
+      var _vars = _hc.styles && _hc.styles.variables;
+      if (_vars) { for (var _k in _vars) if (_vars[_k]) document.documentElement.style.setProperty('--'+_k, _vars[_k]); }
+      return;
     }
   });
 
@@ -1454,6 +1472,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
   }
 })();
 </script>
+<script>window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
@@ -1509,9 +1528,12 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
     if (msg.method === 'ui/notifications/host-context-changed' && msg.params && msg.params.styles && msg.params.styles.variables) {
       applyTheme(msg.params.styles.variables);
     }
-    if (msg.id !== undefined && msg.method === 'ui/initialize') {
-      window.parent.postMessage({ jsonrpc:'2.0', id: msg.id, result:{ protocolVersion:'2026-01-26', appCapabilities:{ availableDisplayModes:['inline','fullscreen'] } } }, '*');
+    if (msg.id === 'view-init' && msg.result) {
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
+      var _hc = msg.result.hostContext || {};
+      var _vars = _hc.styles && _hc.styles.variables;
+      if (_vars) { for (var _k in _vars) if (_vars[_k]) document.documentElement.style.setProperty('--'+_k, _vars[_k]); }
+      return;
     }
   });
 
@@ -1653,6 +1675,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
   }
 })();
 </script>
+<script>window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
@@ -1707,9 +1730,12 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
     if (msg.method === 'ui/notifications/host-context-changed' && msg.params && msg.params.styles && msg.params.styles.variables) {
       applyTheme(msg.params.styles.variables);
     }
-    if (msg.id !== undefined && msg.method === 'ui/initialize') {
-      window.parent.postMessage({ jsonrpc:'2.0', id: msg.id, result:{ protocolVersion:'2026-01-26', appCapabilities:{ availableDisplayModes:['inline','fullscreen'] } } }, '*');
+    if (msg.id === 'view-init' && msg.result) {
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
+      var _hc = msg.result.hostContext || {};
+      var _vars = _hc.styles && _hc.styles.variables;
+      if (_vars) { for (var _k in _vars) if (_vars[_k]) document.documentElement.style.setProperty('--'+_k, _vars[_k]); }
+      return;
     }
   });
 
@@ -1811,6 +1837,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
   }
 })();
 </script>
+<script>window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
