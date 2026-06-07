@@ -100,6 +100,7 @@ body {
         break;
     }
     if (msg.id === 'view-init' && msg.result) {
+      console.log('[findata-ui] got initialize result -> send initialized');
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
       var _hc = msg.result.hostContext || {};
       var _vars = _hc.styles && _hc.styles.variables;
@@ -192,7 +193,7 @@ body {
   }
 })();
 </script>
-<script>window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
+<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
@@ -251,6 +252,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
       for (var k in vars) if (vars[k]) document.documentElement.style.setProperty('--'+k, vars[k]);
     }
     if (msg.id === 'view-init' && msg.result) {
+      console.log('[findata-ui] got initialize result -> send initialized');
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
       var _hc = msg.result.hostContext || {};
       var _vars = _hc.styles && _hc.styles.variables;
@@ -334,7 +336,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
   }
 })();
 </script>
-<script>window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
+<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
@@ -396,6 +398,7 @@ tr:hover td { background: var(--color-row-hover); }
       for (var k in vars) if (vars[k]) document.documentElement.style.setProperty('--'+k, vars[k]);
     }
     if (msg.id === 'view-init' && msg.result) {
+      console.log('[findata-ui] got initialize result -> send initialized');
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
       var _hc = msg.result.hostContext || {};
       var _vars = _hc.styles && _hc.styles.variables;
@@ -544,7 +547,7 @@ tr:hover td { background: var(--color-row-hover); }
   }
 })();
 </script>
-<script>window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
+<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
@@ -610,6 +613,7 @@ body {
         break;
     }
     if (msg.id === 'view-init' && msg.result) {
+      console.log('[findata-ui] got initialize result -> send initialized');
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
       var _hc = msg.result.hostContext || {};
       var _vars = _hc.styles && _hc.styles.variables;
@@ -859,7 +863,7 @@ body {
   }
 })();
 </script>
-<script>window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
+<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
@@ -919,6 +923,7 @@ body {
         break;
     }
     if (msg.id === 'view-init' && msg.result) {
+      console.log('[findata-ui] got initialize result -> send initialized');
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
       var _hc = msg.result.hostContext || {};
       var _vars = _hc.styles && _hc.styles.variables;
@@ -1124,7 +1129,7 @@ body {
   }
 })();
 </script>
-<script>window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
+<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
@@ -1177,6 +1182,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
       applyTheme(msg.params.styles.variables);
     }
     if (msg.id === 'view-init' && msg.result) {
+      console.log('[findata-ui] got initialize result -> send initialized');
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
       var _hc = msg.result.hostContext || {};
       var _vars = _hc.styles && _hc.styles.variables;
@@ -1292,7 +1298,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
   }
 })();
 </script>
-<script>window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
+<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
@@ -1348,6 +1354,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
       applyTheme(msg.params.styles.variables);
     }
     if (msg.id === 'view-init' && msg.result) {
+      console.log('[findata-ui] got initialize result -> send initialized');
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
       var _hc = msg.result.hostContext || {};
       var _vars = _hc.styles && _hc.styles.variables;
@@ -1472,7 +1479,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
   }
 })();
 </script>
-<script>window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
+<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
@@ -1529,6 +1536,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
       applyTheme(msg.params.styles.variables);
     }
     if (msg.id === 'view-init' && msg.result) {
+      console.log('[findata-ui] got initialize result -> send initialized');
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
       var _hc = msg.result.hostContext || {};
       var _vars = _hc.styles && _hc.styles.variables;
@@ -1675,7 +1683,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
   }
 })();
 </script>
-<script>window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
+<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
@@ -1731,6 +1739,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
       applyTheme(msg.params.styles.variables);
     }
     if (msg.id === 'view-init' && msg.result) {
+      console.log('[findata-ui] got initialize result -> send initialized');
       window.parent.postMessage({ jsonrpc:'2.0', method:'ui/notifications/initialized', params:{} }, '*');
       var _hc = msg.result.hostContext || {};
       var _vars = _hc.styles && _hc.styles.variables;
@@ -1837,7 +1846,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
   }
 })();
 </script>
-<script>window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
+<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
