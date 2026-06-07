@@ -163,6 +163,7 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
 
     @mcp.tool(tags={"指数数据"}, annotations=READONLY_ANNOTATIONS,
         description="【指数估值】获取指数 PE/PB/股息率/换手率/市值时序，支持宽基与申万行业指数估值分析\n返回形态（默认）：content.text 内联 markdown 表格 + 结构化数据,无内嵌 UI。\n设 include_ui=True 才附加交互式估值曲线（ui://findata/series-chart）。\n\nArgs:\n    ts_code: 指数代码，如 '000300.SH'(沪深300)、'801010.SI'(申万农林牧渔)\n    trade_date: 交易日期(YYYYMMDD)\n    start_date: 开始日期(YYYYMMDD)\n    end_date: 结束日期(YYYYMMDD)\n    as_file: 为 True 时把完整估值序列写成 .jsonl 文件\n" + AS_FILE_INCLUDE_UI_DECISION_GUIDE,
+        app=AppConfig(resource_uri="ui://findata/series-chart", visibility=["model", "app"]),
     )
     async def get_index_valuation(
         ts_code: str = "",

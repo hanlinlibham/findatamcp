@@ -72,7 +72,7 @@ DATA_TABLE_APP = AppConfig(
 def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
     """注册市场统计工具"""
 
-    @mcp.tool(tags={"市场统计"})
+    @mcp.tool(tags={"市场统计"}, app=AppConfig(resource_uri="ui://findata/market-dashboard", visibility=["model", "app"]))
     async def get_market_summary(
         trade_date: Optional[str] = None,
         market: str = "all",
@@ -550,7 +550,7 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
             logger.error(f"❌ get_market_extremes error: {e}")
             return build_error_response(f"获取市场极值异常: {str(e)}", ErrorCode.UPSTREAM_ERROR)
 
-    @mcp.tool(tags={"市场统计"})
+    @mcp.tool(tags={"市场统计"}, app=AppConfig(resource_uri="ui://findata/data-table", visibility=["model", "app"]))
     async def get_batch_pct_chg(
         stock_codes: CodeList = None,
         start_date: str = "",
