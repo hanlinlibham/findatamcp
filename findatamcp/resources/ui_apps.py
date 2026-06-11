@@ -193,7 +193,7 @@ body {
   }
 })();
 </script>
-<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
+<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},appInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
@@ -336,7 +336,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
   }
 })();
 </script>
-<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
+<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},appInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
@@ -547,7 +547,7 @@ tr:hover td { background: var(--color-row-hover); }
   }
 })();
 </script>
-<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
+<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},appInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
@@ -863,7 +863,7 @@ body {
   }
 })();
 </script>
-<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
+<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},appInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
@@ -1129,7 +1129,7 @@ body {
   }
 })();
 </script>
-<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
+<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},appInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
@@ -1298,7 +1298,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
   }
 })();
 </script>
-<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
+<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},appInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
@@ -1479,7 +1479,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
   }
 })();
 </script>
-<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
+<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},appInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
@@ -1683,7 +1683,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
   }
 })();
 </script>
-<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
+<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},appInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
@@ -1846,7 +1846,7 @@ body { font-family: var(--font-sans); color: var(--color-text-primary); backgrou
   }
 })();
 </script>
-<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},clientInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
+<script>console.log('[findata-ui] send ui/initialize');window.parent.postMessage({jsonrpc:'2.0',id:'view-init',method:'ui/initialize',params:{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']},appInfo:{name:'findata-ui',version:'1.0.0'}}},'*');</script>
 </body>
 </html>"""
 
