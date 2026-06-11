@@ -14,9 +14,11 @@ from fastmcp import FastMCP
 from fastmcp.server.apps import AppConfig
 from fastmcp.tools.tool import ToolResult
 from mcp.types import TextContent
-from pydantic import Field
+from pydantic import Field, BeforeValidator
 import pandas as pd
 import numpy as np
+import json
+import re
 import logging
 
 from ..cache import cache
@@ -26,9 +28,32 @@ from ..utils.response import build_success_response, build_error_response, build
 from ..utils.errors import ErrorCode
 from ..utils.ui_hint import append_hint_to_summary
 from ..utils.artifact_payload import finalize_artifact_result, AS_FILE_INCLUDE_UI_DECISION_GUIDE
+from .routing import attach_next_steps
 from .constants import INCLUDE_UI_DESCRIPTION
 
 logger = logging.getLogger(__name__)
+
+
+def _coerce_code_list(v):
+    """容错：模型有时把代码列表序列化成 JSON 字符串或逗号/空格分隔串传入。"""
+    if v is None or isinstance(v, list):
+        return v
+    if isinstance(v, str):
+        t = v.strip()
+        if not t:
+            return None
+        if t.startswith("["):
+            try:
+                parsed = json.loads(t)
+                if isinstance(parsed, list):
+                    return [str(x).strip() for x in parsed]
+            except Exception:
+                pass
+        return [p.strip() for p in re.split(r"[,\s]+", t) if p.strip()]
+    return v
+
+
+CodeList = Annotated[Optional[List[str]], BeforeValidator(_coerce_code_list)]
 
 MARKET_DASHBOARD_APP = AppConfig(
     resource_uri="ui://findata/market-dashboard",
@@ -47,7 +72,7 @@ DATA_TABLE_APP = AppConfig(
 def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
     """注册市场统计工具"""
 
-    @mcp.tool(tags={"市场统计"}, app=MARKET_DASHBOARD_APP)
+    @mcp.tool(tags={"市场统计"}, app=AppConfig(resource_uri="ui://findata/market-dashboard", visibility=["model", "app"]))
     async def get_market_summary(
         trade_date: Optional[str] = None,
         market: str = "all",
@@ -299,6 +324,7 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
                 "meta": meta,
                 "timestamp": datetime.now().isoformat()
             }
+            structured = attach_next_steps(structured, "get_market_summary")
 
             _ms_rows = [data] if isinstance(data, dict) else list(data or [])
             return finalize_artifact_result(
@@ -369,6 +395,16 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
             }
         """
         try:
+            # 先校验 metric 枚举（参数校验前置，不依赖 API 可用性）
+            _valid_metrics = ["pct_chg", "amount", "turnover_rate"]
+            if metric not in _valid_metrics:
+                return build_error_response(
+                    error=f"不支持的排序指标: {metric}，请使用 {'/'.join(_valid_metrics)}",
+                    error_code=ErrorCode.INVALID_ENUM,
+                    valid_values=_valid_metrics,
+                    data={"metric": metric},
+                )
+
             if not api.is_available():
                 return build_error_response("数据服务不可用（Pro 接口未配置）", ErrorCode.PRO_REQUIRED)
 
@@ -503,6 +539,7 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
                 "meta": meta,
                 "timestamp": datetime.now().isoformat()
             }
+            structured = attach_next_steps(structured, "get_market_extremes")
 
             return ToolResult(
                 content=[TextContent(type="text", text=summary)],
@@ -513,15 +550,15 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
             logger.error(f"❌ get_market_extremes error: {e}")
             return build_error_response(f"获取市场极值异常: {str(e)}", ErrorCode.UPSTREAM_ERROR)
 
-    @mcp.tool(tags={"市场统计"}, app=DATA_TABLE_APP)
+    @mcp.tool(tags={"市场统计"}, app=AppConfig(resource_uri="ui://findata/data-table", visibility=["model", "app"]))
     async def get_batch_pct_chg(
-        stock_codes: Optional[List[str]] = None,
+        stock_codes: CodeList = None,
         start_date: str = "",
         end_date: Optional[str] = None,
         as_file: bool = False,
         include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
-        ts_codes: Optional[List[str]] = None,  # 兼容别名
-        codes: Optional[List[str]] = None  # 兼容别名
+        ts_codes: CodeList = None,  # 兼容别名
+        codes: CodeList = None  # 兼容别名
     ) -> Union[ToolResult, Dict[str, Any]]:
         """
         【批量涨跌幅】计算多只股票的区间累计涨跌幅，并返回均值
@@ -751,6 +788,7 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
                 "meta": meta,
                 "timestamp": datetime.now().isoformat()
             }
+            structured = attach_next_steps(structured, "get_batch_pct_chg")
 
             return finalize_artifact_result(
                 rows=results or [],

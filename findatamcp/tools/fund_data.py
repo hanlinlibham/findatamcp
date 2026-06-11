@@ -20,6 +20,9 @@ from ..utils.large_data_handler import handle_large_data, merge_large_data_paylo
 from ..utils.ui_hint import attach_hint_to_dict
 from ..utils.artifact_payload import finalize_artifact_result, AS_FILE_INCLUDE_UI_DECISION_GUIDE
 from .constants import INCLUDE_UI_DESCRIPTION, READONLY_ANNOTATIONS
+from ..utils.response import build_error_response
+from ..utils.errors import ErrorCode
+from .routing import attach_next_steps
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +75,11 @@ def register_fund_tools(mcp: FastMCP, api: TushareAPI):
         """
         try:
             if not api.is_available():
-                return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
+                return build_error_response(
+                    error="数据服务不可用（Pro 接口未配置）",
+                    error_code=ErrorCode.PRO_REQUIRED,
+                    data={"ts_code": ts_code},
+                )
 
             result: Dict[str, Any] = {"success": True, "ts_code": ts_code}
 
@@ -95,7 +102,11 @@ def register_fund_tools(mcp: FastMCP, api: TushareAPI):
             # 兼容参数别名
             ts_code = ts_code or stock_code or code
             if not ts_code:
-                return {"success": False, "error": "请提供基金代码（参数名: ts_code, stock_code 或 code）"}
+                return build_error_response(
+                    error="请提供基金代码（参数名: ts_code, stock_code 或 code）",
+                    error_code=ErrorCode.MISSING_PARAM,
+                )
+            result["ts_code"] = ts_code
             is_etf = api.is_fund_code(ts_code)
             if is_etf:
                 tasks["etf"] = cache.cached_call(
@@ -193,13 +204,18 @@ def register_fund_tools(mcp: FastMCP, api: TushareAPI):
                 result["latest_share"] = None
 
             result["timestamp"] = datetime.now().isoformat()
-            return result
+            return attach_next_steps(result, "get_fund_data")
 
         except Exception as e:
-            return {"success": False, "error": f"获取基金数据异常: {str(e)}", "ts_code": ts_code}
+            return build_error_response(
+                error=f"获取基金数据异常: {str(e)}",
+                error_code=ErrorCode.UPSTREAM_ERROR,
+                data={"ts_code": ts_code},
+            )
 
-    @mcp.tool(tags={"基金数据"}, annotations=READONLY_ANNOTATIONS, app=FUND_NAV_CHART_APP,
+    @mcp.tool(tags={"基金数据"}, annotations=READONLY_ANNOTATIONS,
         description="【基金净值】获取基金单位净值/累计净值/调整净值时间序列，画基金净值曲线必备\n返回形态（默认）：content.text 内联 markdown 表格 + 结构化数据,无内嵌 UI。\n设 include_ui=True 才附加交互式净值曲线（ui://findata/fund-nav-chart）。\n\nArgs:\n    ts_code: 基金代码，如 '510300.SH'、'000001.OF'\n    start_date: 开始日期(YYYYMMDD)\n    end_date: 结束日期(YYYYMMDD)\n    market: E(场内) / O(场外)，可选\n    as_file: 为 True 时把完整净值序列写成 .jsonl 文件\n" + AS_FILE_INCLUDE_UI_DECISION_GUIDE,
+        app=AppConfig(resource_uri="ui://findata/fund-nav-chart", visibility=["model", "app"]),
     )
     async def get_fund_nav(
         ts_code: str = "",

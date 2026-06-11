@@ -3,7 +3,7 @@
 提供指数专属的MCP工具，包括：
 - get_index_weight: 获取指数成分股及权重
 - get_index_valuation: 获取指数估值数据（PE/PB/换手率/市值）
-- get_industry_overview: 行业分类与成分查询（申万/中信）
+- get_industry_overview: 行业分类与成分查询（行业分析默认申万；中信仅用户显式要求时）
 """
 
 from typing import Annotated, Literal, Dict, Any, Optional
@@ -18,6 +18,9 @@ from ..utils.tushare_api import TushareAPI
 from ..utils.large_data_handler import handle_large_data, merge_large_data_payload, prepare_large_data_view
 from ..utils.ui_hint import attach_hint_to_dict
 from ..utils.artifact_payload import finalize_artifact_result, AS_FILE_INCLUDE_UI_DECISION_GUIDE
+from ..utils.response import build_error_response
+from ..utils.errors import ErrorCode
+from .routing import attach_next_steps
 from .constants import INCLUDE_UI_DESCRIPTION, READONLY_ANNOTATIONS
 
 logger = logging.getLogger(__name__)
@@ -110,7 +113,7 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
         """
         try:
             if not api.is_available():
-                return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
+                return build_error_response("数据服务不可用（Pro 接口未配置）", ErrorCode.PRO_REQUIRED)
 
             kwargs = {"index_code": index_code}
             if trade_date:
@@ -127,11 +130,11 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
             )
 
             if df is None or df.empty:
-                return {
-                    "success": False,
-                    "error": f"未找到指数 {index_code} 的成分股数据",
-                    "index_code": index_code
-                }
+                return build_error_response(
+                    error=f"未找到指数 {index_code} 的成分股数据",
+                    error_code=ErrorCode.INVALID_INDEX_CODE,
+                    data={"index_code": index_code},
+                )
 
             # 按权重降序排列
             df = df.sort_values('weight', ascending=False)
@@ -149,17 +152,18 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
                 result.update(large)
             else:
                 result["constituents"] = large["data"]
-            return result
+            return attach_next_steps(result, "get_index_weight")
 
         except Exception as e:
-            return {
-                "success": False,
-                "error": f"获取指数成分股异常: {str(e)}",
-                "index_code": index_code
-            }
+            return build_error_response(
+                error=f"获取指数成分股异常: {str(e)}",
+                error_code=ErrorCode.UPSTREAM_ERROR,
+                data={"index_code": index_code},
+            )
 
-    @mcp.tool(tags={"指数数据"}, annotations=READONLY_ANNOTATIONS, app=SERIES_CHART_APP,
+    @mcp.tool(tags={"指数数据"}, annotations=READONLY_ANNOTATIONS,
         description="【指数估值】获取指数 PE/PB/股息率/换手率/市值时序，支持宽基与申万行业指数估值分析\n返回形态（默认）：content.text 内联 markdown 表格 + 结构化数据,无内嵌 UI。\n设 include_ui=True 才附加交互式估值曲线（ui://findata/series-chart）。\n\nArgs:\n    ts_code: 指数代码，如 '000300.SH'(沪深300)、'801010.SI'(申万农林牧渔)\n    trade_date: 交易日期(YYYYMMDD)\n    start_date: 开始日期(YYYYMMDD)\n    end_date: 结束日期(YYYYMMDD)\n    as_file: 为 True 时把完整估值序列写成 .jsonl 文件\n" + AS_FILE_INCLUDE_UI_DECISION_GUIDE,
+        app=AppConfig(resource_uri="ui://findata/series-chart", visibility=["model", "app"]),
     )
     async def get_index_valuation(
         ts_code: str = "",
@@ -211,10 +215,19 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
                 )
 
             if df is None or df.empty:
+                # tushare 指数估值仅覆盖宽基指数与申万行业指数(.SI)；主题/概念指数(.CSI 等)无直接 PE/PB。
+                # 不返回死路，给出成分聚合路径，避免上层 agent 卡死。
                 return {
                     "success": False,
                     "error": f"未找到指数 {ts_code} 的估值数据",
-                    "ts_code": ts_code
+                    "error_code": "no_index_valuation",
+                    "ts_code": ts_code,
+                    "hint": "tushare 指数估值仅覆盖宽基指数与申万行业指数(.SI)；主题/概念指数(如 .CSI)无直接 PE/PB。请改用成分聚合：get_index_weight(ts_code) 取成分 → get_stock_valuation(成分) 看个股估值 / get_batch_pct_chg(成分) 看区间涨跌。",
+                    "next_steps": [
+                        {"intent": "取指数成分", "tool": "get_index_weight"},
+                        {"intent": "成分估值", "tool": "get_stock_valuation"},
+                        {"intent": "成分区间涨跌", "tool": "get_batch_pct_chg"},
+                    ],
                 }
 
             df = df.sort_values('trade_date')
@@ -257,8 +270,11 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
     ) -> Dict[str, Any]:
         """【行业分类】查询申万/中信 L1/L2/L3 行业分类树或行业成分股列表
 
+        ⭐ 行业分析/估值默认走申万口径(sw_members)：申万行业指数自带 PE/PB(见 get_index_valuation)；
+           中信(ci_members)在 tushare 无指数估值数据，仅当用户明确要"中信口径/中信一级"时才用，不要主动把行业(尤其估值)查询引导到中信。
+
         Args:
-            action: 仅支持以下 3 个值（区分大小写）：classify(行业分类列表) / sw_members(申万成分股) / ci_members(中信成分股)。不要传其他值
+            action: 仅支持以下 3 个值（区分大小写）：classify(行业分类列表) / sw_members(申万成分股,行业分析默认首选) / ci_members(中信成分股,仅用户显式要求中信口径时用)。不要传其他值
             level: 行业级别，仅 classify 用，L1/L2/L3
             src: 分类来源，仅 classify 用，如 "SW2021"
             index_code: 行业指数代码，如 "801010.SI"
@@ -266,7 +282,7 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
         """
         try:
             if not api.is_available():
-                return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
+                return build_error_response("数据服务不可用（Pro 接口未配置）", ErrorCode.PRO_REQUIRED)
 
             if action == "classify":
                 kwargs = {}
@@ -282,16 +298,17 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
                 )
 
                 if df is None or df.empty:
-                    return {"success": False, "error": "未找到行业分类数据"}
+                    return build_error_response("未找到行业分类数据", ErrorCode.NO_DATA)
 
                 data = df.to_dict('records')
-                return {
+                result = {
                     "success": True,
                     "action": action,
                     "count": len(data),
                     "data": data,
                     "timestamp": datetime.now().isoformat()
                 }
+                return attach_next_steps(result, "get_industry_overview")
 
             elif action == "sw_members":
                 kwargs = {}
@@ -317,7 +334,7 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
                 )
 
                 if df is None or df.empty:
-                    return {"success": False, "error": "未找到申万行业成分数据"}
+                    return build_error_response("未找到申万行业成分数据", ErrorCode.NO_DATA)
 
                 data = df.to_dict('records')
                 result = {
@@ -331,7 +348,7 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
                     result.update(large)
                 else:
                     result["data"] = large["data"]
-                return result
+                return attach_next_steps(result, "get_industry_overview")
 
             elif action == "ci_members":
                 kwargs = {}
@@ -347,7 +364,7 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
                 )
 
                 if df is None or df.empty:
-                    return {"success": False, "error": "未找到中信行业成分数据"}
+                    return build_error_response("未找到中信行业成分数据", ErrorCode.NO_DATA)
 
                 data = df.to_dict('records')
                 result = {
@@ -361,17 +378,19 @@ def register_index_tools(mcp: FastMCP, api: TushareAPI):
                     result.update(large)
                 else:
                     result["data"] = large["data"]
-                return result
+                return attach_next_steps(result, "get_industry_overview")
 
             else:
-                return {
-                    "success": False,
-                    "error": f"不支持的 action: {action}，请使用 classify/sw_members/ci_members"
-                }
+                return build_error_response(
+                    error=f"不支持的 action: {action}，请使用 classify/sw_members/ci_members",
+                    error_code=ErrorCode.INVALID_ENUM,
+                    valid_values=["classify", "sw_members", "ci_members"],
+                    data={"action": action},
+                )
 
         except Exception as e:
-            return {
-                "success": False,
-                "error": f"行业查询异常: {str(e)}",
-                "action": action
-            }
+            return build_error_response(
+                error=f"行业查询异常: {str(e)}",
+                error_code=ErrorCode.UPSTREAM_ERROR,
+                data={"action": action},
+            )

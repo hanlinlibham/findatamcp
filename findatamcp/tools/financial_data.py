@@ -15,40 +15,49 @@ from fastmcp import FastMCP
 
 from ..cache import cache
 from ..utils.tushare_api import TushareAPI
+from ..utils.response import build_error_response
+from ..utils.errors import ErrorCode
+from .routing import attach_next_steps
 
 
 def register_financial_tools(mcp: FastMCP, api: TushareAPI):
     """注册财务数据工具"""
 
-    @mcp.tool(tags={"财务数据"})
-    async def get_financial_indicators(
-        ts_code: str = "",
-        stock_code: str = "",
-        code: str = "",
+    async def _financial_summary_impl(
+        ts_code: str,
+        stock_code: str,
+        code: str,
+        next_steps_tool: str,
     ) -> Dict[str, Any]:
-        """【核心财务】一次返回 A 股营收/净利润/总资产/净资产等利润表+资产负债表关键科目
+        """核心财务科目金额快照的共享实现（营收/净利润/总资产/净资产）。
 
-        Args:
-            ts_code: A股代码，支持 '600519.SH' 或 '600519'（自动补全后缀）。也可用 stock_code 参数名
-
-        Returns:
-            income_core: 核心利润表数据（营收、净利润）
-            balance_core: 核心资产负债表数据（总资产、净资产）
+        next_steps_tool 决定 attach_next_steps 注入的工具名，使新工具与
+        deprecated facade 复用同一逻辑而 routing key 各自归属。
         """
         try:
             # 兼容参数别名
             ts_code = ts_code or stock_code or code
             if not ts_code:
-                return {"success": False, "error": "请提供股票代码（参数名: ts_code, stock_code 或 code）"}
+                return build_error_response(
+                    error="请提供股票代码（参数名: ts_code, stock_code 或 code）",
+                    error_code=ErrorCode.MISSING_PARAM,
+                )
             ts_code = api.normalize_stock_code(ts_code)
 
             # 财务数据仅支持 A 股
             _market = api.get_market(ts_code)
             if _market != "A":
-                return {"success": False, "error": f"财务数据仅支持A股，当前代码 {ts_code} 为{'港股' if _market == 'HK' else '美股'}"}
+                return build_error_response(
+                    error=f"财务数据仅支持A股，当前代码 {ts_code} 为{'港股' if _market == 'HK' else '美股'}",
+                    error_code=ErrorCode.INVALID_STOCK_CODE,
+                    data={"ts_code": ts_code},
+                )
 
             if not api.is_available():
-                return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
+                return build_error_response(
+                    error="数据服务不可用（Pro 接口未配置）",
+                    error_code=ErrorCode.PRO_REQUIRED,
+                )
 
             financial_data = {}
 
@@ -88,24 +97,72 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
                 }
 
             if financial_data:
-                return {
+                result = {
                     "success": True,
                     "ts_code": ts_code,
                     "financial_data": financial_data,
                     "timestamp": datetime.now().isoformat()
                 }
+                return attach_next_steps(result, next_steps_tool)
             else:
-                return {
-                    "success": False,
-                    "error": "未找到财务数据",
-                    "ts_code": ts_code
-                }
+                return build_error_response(
+                    error="未找到财务数据",
+                    error_code=ErrorCode.NO_DATA,
+                    data={"ts_code": ts_code},
+                )
         except Exception as e:
             return {
                 "success": False,
                 "error": f"获取财务指标异常: {str(e)}",
                 "ts_code": ts_code if 'ts_code' in locals() else None
             }
+
+    @mcp.tool(tags={"财务数据"})
+    async def get_financial_summary(
+        ts_code: str = "",
+        stock_code: str = "",
+        code: str = "",
+    ) -> Dict[str, Any]:
+        """【核心财务科目金额快照】一次返回 A 股营收/净利润/总资产/净资产等金额类核心科目（利润表+资产负债表关键科目）
+
+        如需 ROE/ROA/毛利率/净利率等比率类指标，请改用 get_financial_ratios。
+
+        Args:
+            ts_code: A股代码，支持 '600519.SH' 或 '600519'（自动补全后缀）。也可用 stock_code 参数名
+
+        Returns:
+            income_core: 核心利润表数据（营收、净利润）
+            balance_core: 核心资产负债表数据（总资产、净资产）
+        """
+        return await _financial_summary_impl(
+            ts_code, stock_code, code, "get_financial_summary"
+        )
+
+    @mcp.tool(tags={"财务数据"})
+    async def get_financial_indicators(
+        ts_code: str = "",
+        stock_code: str = "",
+        code: str = "",
+    ) -> Dict[str, Any]:
+        """[DEPRECATED→get_financial_summary] 【核心财务科目金额快照】一次返回 A 股营收/净利润/总资产/净资产等金额类核心科目（利润表+资产负债表关键科目）
+
+        Args:
+            ts_code: A股代码，支持 '600519.SH' 或 '600519'（自动补全后缀）。也可用 stock_code 参数名
+
+        Returns:
+            income_core: 核心利润表数据（营收、净利润）
+            balance_core: 核心资产负债表数据（总资产、净资产）
+        """
+        result = await _financial_summary_impl(
+            ts_code, stock_code, code, "get_financial_indicators"
+        )
+        if isinstance(result, dict) and result.get("success"):
+            result["deprecation"] = {
+                "replaced_by": "get_financial_summary",
+                "sunset": "2026-12-31",
+                "note": "请改用 get_financial_summary(命名更清晰: summary=金额科目, ratios=比率)",
+            }
+        return result
 
     @mcp.tool(tags={"财务数据"})
     async def get_basic_info(
@@ -125,11 +182,17 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
             # 兼容参数别名
             ts_code = ts_code or stock_code or code
             if not ts_code:
-                return {"success": False, "error": "请提供股票代码（参数名: ts_code, stock_code 或 code）"}
+                return build_error_response(
+                    error="请提供股票代码（参数名: ts_code, stock_code 或 code）",
+                    error_code=ErrorCode.MISSING_PARAM,
+                )
             ts_code = api.normalize_stock_code(ts_code)
 
             if not api.is_available():
-                return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
+                return build_error_response(
+                    error="数据服务不可用（Pro 接口未配置）",
+                    error_code=ErrorCode.PRO_REQUIRED,
+                )
 
             _market = api.get_market(ts_code)
 
@@ -179,18 +242,19 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
                             'introduction': company_info.get('introduction', '')
                         })
 
-                return {
+                result = {
                     "success": True,
                     "ts_code": ts_code,
                     "basic_info": basic_info,
                     "timestamp": datetime.now().isoformat()
                 }
+                return attach_next_steps(result, "get_basic_info")
             else:
-                return {
-                    "success": False,
-                    "error": "未找到股票基本信息",
-                    "ts_code": ts_code
-                }
+                return build_error_response(
+                    error="未找到股票基本信息",
+                    error_code=ErrorCode.SYMBOL_NOT_FOUND,
+                    data={"ts_code": ts_code},
+                )
         except Exception as e:
             return {
                 "success": False,
@@ -201,7 +265,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
     @mcp.tool(tags={"财务数据"})
     async def get_income_statement(
         ts_code: str = "",
-        period: str = "20231231",
+        period: str = "",
         report_type: str = "1",
         stock_code: str = "",
         code: str = "",
@@ -215,7 +279,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
 
         Args:
             ts_code: A股代码，支持 '600519.SH' 或 '600519'（自动补全后缀）。也可用 stock_code 参数名
-            period: 报告期(YYYYMMDD)，如 20241231, 20240930。默认'20231231'
+            period: 报告期(YYYYMMDD)，留空(默认)自动取最新已披露报告期；也可指定如 20251231/20250930。查询未公布的报告期会返回空数据
             report_type: 1-合并报表,2-单季合并,3-调整单季,4-调整合并
 
         Returns:
@@ -236,24 +300,27 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
             if not api.is_available():
                 return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
 
+            # period 留空时自动取最新已披露报告期，避免硬编码默认值随时间过时
+            _period_kwargs = {"period": period} if period else {"limit": 1}
             df = await cache.cached_call(
                 api.pro.income,
                 cache_type="financial",
                 ts_code=ts_code,
-                period=period,
-                report_type=report_type
+                report_type=report_type,
+                **_period_kwargs,
             )
 
             if df.empty:
-                return {"success": False, "error": "未找到利润表数据", "ts_code": ts_code, "period": period}
+                return {"success": False, "error": "未找到利润表数据", "ts_code": ts_code, "period": period or "latest"}
 
             # 转换为字典
             data = df.iloc[0].to_dict()
+            actual_period = period or data.get("end_date", "")
 
             return {
                 "success": True,
                 "ts_code": ts_code,
-                "period": period,
+                "period": actual_period,
                 "report_type": report_type,
                 "data": data,
                 "timestamp": datetime.now().isoformat()
@@ -268,7 +335,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
     @mcp.tool(tags={"财务数据"})
     async def get_balance_sheet(
         ts_code: str = "",
-        period: str = "20231231",
+        period: str = "",
         report_type: str = "1",
         stock_code: str = "",
         code: str = "",
@@ -277,7 +344,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
 
         Args:
             ts_code: A股代码，支持 '600519.SH' 或 '600519'（自动补全后缀）。也可用 stock_code 参数名
-            period: 报告期(YYYYMMDD)，如 20241231, 20240930。未公布的报告期会返回空数据，默认'20231231'
+            period: 报告期(YYYYMMDD)，留空(默认)自动取最新已披露报告期；未公布的报告期会返回空数据。也可指定如 20251231/20250930
             report_type: 1-合并报表,2-单季合并,3-调整单季,4-调整合并
 
         Returns:
@@ -298,23 +365,26 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
             if not api.is_available():
                 return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
 
+            # period 留空时自动取最新已披露报告期，避免硬编码默认值随时间过时
+            _period_kwargs = {"period": period} if period else {"limit": 1}
             df = await cache.cached_call(
                 api.pro.balancesheet,
                 cache_type="financial",
                 ts_code=ts_code,
-                period=period,
-                report_type=report_type
+                report_type=report_type,
+                **_period_kwargs,
             )
 
             if df.empty:
-                return {"success": False, "error": "未找到资产负债表数据", "ts_code": ts_code, "period": period}
+                return {"success": False, "error": "未找到资产负债表数据", "ts_code": ts_code, "period": period or "latest"}
 
             data = df.iloc[0].to_dict()
+            actual_period = period or data.get("end_date", "")
 
             return {
                 "success": True,
                 "ts_code": ts_code,
-                "period": period,
+                "period": actual_period,
                 "report_type": report_type,
                 "data": data,
                 "timestamp": datetime.now().isoformat()
@@ -329,7 +399,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
     @mcp.tool(tags={"财务数据"})
     async def get_cashflow_statement(
         ts_code: str = "",
-        period: str = "20231231",
+        period: str = "",
         report_type: str = "1",
         stock_code: str = "",
         code: str = "",
@@ -338,7 +408,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
 
         Args:
             ts_code: A股代码，支持 '600519.SH' 或 '600519'（自动补全后缀）。也可用 stock_code 参数名
-            period: 报告期(YYYYMMDD)，如 20241231, 20240930。未公布的报告期会返回空数据，默认'20231231'
+            period: 报告期(YYYYMMDD)，留空(默认)自动取最新已披露报告期；未公布的报告期会返回空数据。也可指定如 20251231/20250930
             report_type: 1-合并报表,2-单季合并,3-调整单季,4-调整合并
 
         Returns:
@@ -359,23 +429,26 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
             if not api.is_available():
                 return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
 
+            # period 留空时自动取最新已披露报告期，避免硬编码默认值随时间过时
+            _period_kwargs = {"period": period} if period else {"limit": 1}
             df = await cache.cached_call(
                 api.pro.cashflow,
                 cache_type="financial",
                 ts_code=ts_code,
-                period=period,
-                report_type=report_type
+                report_type=report_type,
+                **_period_kwargs,
             )
 
             if df.empty:
-                return {"success": False, "error": "未找到现金流量表数据", "ts_code": ts_code, "period": period}
+                return {"success": False, "error": "未找到现金流量表数据", "ts_code": ts_code, "period": period or "latest"}
 
             data = df.iloc[0].to_dict()
+            actual_period = period or data.get("end_date", "")
 
             return {
                 "success": True,
                 "ts_code": ts_code,
-                "period": period,
+                "period": actual_period,
                 "report_type": report_type,
                 "data": data,
                 "timestamp": datetime.now().isoformat()
@@ -387,22 +460,13 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
                 "ts_code": ts_code if 'ts_code' in locals() else None
             }
 
-    @mcp.tool(tags={"财务数据"})
-    async def get_financial_indicator(
-        ts_code: str = "",
-        period: str = "20231231",
-        stock_code: str = "",
-        code: str = "",
+    async def _financial_ratios_impl(
+        ts_code: str,
+        period: str,
+        stock_code: str,
+        code: str,
     ) -> Dict[str, Any]:
-        """获取财务指标数据（ROE/ROA/毛利率/净利率等，仅支持A股）
-
-        Args:
-            ts_code: A股代码，支持 '600519.SH' 或 '600519'（自动补全后缀）。也可用 stock_code 参数名
-            period: 报告期(YYYYMMDD)，默认'20231231'
-
-        Returns:
-            roe/roa/grossprofit_margin/netprofit_margin/debt_to_assets/eps/bps: 财务指标字段
-        """
+        """财务比率类指标的共享实现（ROE/ROA/毛利率/净利率等）。"""
         try:
             # 兼容参数别名
             ts_code = ts_code or stock_code or code
@@ -418,22 +482,25 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
             if not api.is_available():
                 return {"success": False, "error": "数据服务不可用（Pro 接口未配置）"}
 
+            # period 留空时自动取最新已披露报告期（与 get_financial_summary 一致），避免硬编码默认值随时间过时
+            _period_kwargs = {"period": period} if period else {"limit": 1}
             df = await cache.cached_call(
                 api.pro.fina_indicator,
                 cache_type="financial",
                 ts_code=ts_code,
-                period=period
+                **_period_kwargs,
             )
 
             if df.empty:
-                return {"success": False, "error": "未找到财务指标数据", "ts_code": ts_code, "period": period}
+                return {"success": False, "error": "未找到财务指标数据", "ts_code": ts_code, "period": period or "latest"}
 
             data = df.iloc[0].to_dict()
+            actual_period = period or data.get("end_date", "")
 
             return {
                 "success": True,
                 "ts_code": ts_code,
-                "period": period,
+                "period": actual_period,
                 "data": data,
                 "timestamp": datetime.now().isoformat()
             }
@@ -443,3 +510,48 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
                 "error": f"获取财务指标数据异常: {str(e)}",
                 "ts_code": ts_code if 'ts_code' in locals() else None
             }
+
+    @mcp.tool(tags={"财务数据"})
+    async def get_financial_ratios(
+        ts_code: str = "",
+        period: str = "",
+        stock_code: str = "",
+        code: str = "",
+    ) -> Dict[str, Any]:
+        """【财务比率】获取财务比率类指标（ROE/ROA/毛利率/净利率/资产负债率/EPS/BPS 等，仅支持A股）
+
+        如需营收/净利润/总资产/净资产等金额类核心科目快照，请改用 get_financial_summary。
+
+        Args:
+            ts_code: A股代码，支持 '600519.SH' 或 '600519'（自动补全后缀）。也可用 stock_code 参数名
+            period: 报告期(YYYYMMDD)，留空(默认)自动取最新已披露报告期；也可指定如 20251231/20250930
+
+        Returns:
+            roe/roa/grossprofit_margin/netprofit_margin/debt_to_assets/eps/bps: 财务比率字段
+        """
+        return await _financial_ratios_impl(ts_code, period, stock_code, code)
+
+    @mcp.tool(tags={"财务数据"})
+    async def get_financial_indicator(
+        ts_code: str = "",
+        period: str = "",
+        stock_code: str = "",
+        code: str = "",
+    ) -> Dict[str, Any]:
+        """[DEPRECATED→get_financial_ratios] 【财务比率】获取财务比率类指标（ROE/ROA/毛利率/净利率等，仅支持A股）
+
+        Args:
+            ts_code: A股代码，支持 '600519.SH' 或 '600519'（自动补全后缀）。也可用 stock_code 参数名
+            period: 报告期(YYYYMMDD)，留空(默认)自动取最新已披露报告期；也可指定如 20251231/20250930
+
+        Returns:
+            roe/roa/grossprofit_margin/netprofit_margin/debt_to_assets/eps/bps: 财务比率字段
+        """
+        result = await _financial_ratios_impl(ts_code, period, stock_code, code)
+        if isinstance(result, dict) and result.get("success"):
+            result["deprecation"] = {
+                "replaced_by": "get_financial_ratios",
+                "sunset": "2026-12-31",
+                "note": "请改用 get_financial_ratios(命名更清晰: summary=金额科目, ratios=比率)",
+            }
+        return result

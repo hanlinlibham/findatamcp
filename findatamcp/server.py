@@ -30,6 +30,7 @@ from fastmcp import FastMCP
 import uvicorn
 
 from findatamcp.config import config
+from findatamcp import __runtime_version__
 
 # ── Session 过期友好提示中间件 ──
 import json as _json
@@ -174,14 +175,17 @@ def create_mcp_server() -> FastMCP:
         yield
 
     # 创建 MCP 实例
+    # 显式传 version：让 serverInfo 暴露应用版本+git SHA，而不是 fastmcp 库版本
     mcp = FastMCP(
         name="ablemind-findata",
+        version=__runtime_version__,
         instructions=(
             "专业A股金融数据服务。工具按分类组织：市场统计、行情数据、行业板块、量化分析、财务数据、搜索、宏观数据、指数数据。\n"
             "调用 get_tool_manifest 查看完整工具清单。"
         ),
         lifespan=server_lifespan,
     )
+    logger.info(f"✅ MCP serverInfo.version = {__runtime_version__}")
 
     # 注册全局请求日志中间件(tool/resource/list/init)
     mcp.add_middleware(LoggingMiddleware())
@@ -208,7 +212,7 @@ def create_mcp_server() -> FastMCP:
     logger.info("📦 Registering tools...")
 
     # 注册所有工具
-    register_market_tools(mcp, api)
+    register_market_tools(mcp, api, db)
     register_financial_tools(mcp, api)
     register_performance_tools(mcp, api)
     register_market_flow_tools(mcp, api)

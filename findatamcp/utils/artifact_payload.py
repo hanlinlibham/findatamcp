@@ -15,17 +15,29 @@ structuredContent 字段:
   F, T         rows inline,    +data/daily_data
   T, F         rows=[],path,   无 UI 别名
   T, T         rows=[],path,   data=[]/daily_data=[]
+
+per-call UI 绑定:
+  include_ui=True 时,ToolResult.meta = {"ui": {"resourceUri": ui_uri}},
+  对应 wire 上 CallToolResult._meta.ui.resourceUri,前端按此渲染 iframe。
+  tool 注册时不再静态绑定 app=AppConfig(...),tools/list 不带 _meta.ui,
+  iframe 渲染完全由 per-call meta 驱动。
 """
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any, Dict, List, Optional
 
 from fastmcp.tools.tool import ToolResult
 from mcp.types import TextContent
 
-from ..cache.data_file_store import data_file_store, infer_schema
+# data_file_store 的 store / get_download_urls 调用点已全部撤掉
+# (as_file 通路停用,改由 deepagents 端 offloading 自动落盘到 agent sandbox)。
+# infer_schema 仍是列类型推断的本地工具,继续用。
+# data_file_store 对象本身仍被 routes/data_download.py + resources/large_data.py
+# + utils/large_data_handler.py 引用,模块文件留作 orphan,下个迭代再清。
+from ..cache.data_file_store import infer_schema
 
 
 def _safe_name(s: str) -> str:
@@ -66,12 +78,34 @@ def _fmt_cell(v: Any) -> str:
     return str(v)
 
 
+def render_jsonl_body(rows: List[Dict[str, Any]]) -> str:
+    """全量 rows 渲染成 JSONL（每行一条紧凑 dict）。
+
+    选 JSONL 不选 markdown table / JSON array 的原因:
+      - 上层 deepagents offloading 触发后预览策略是 "首 10 行",JSONL 每行就是
+        一条完整记录,前 10 行预览有实际信息量;markdown 前 10 行只有表头,
+        JSON array 一整块只有一个 "[" 字符。
+      - 大数据(几千几万行)直接 inline 没事,deepagents 检测 content >20K tokens
+        会自动写到 agent sandbox /workspace/large_tool_results/,findata 侧不再
+        重复做文件存储 + path 拼接(旧 as_file 通路引出的死循环源头)。
+    """
+    if not rows:
+        return ""
+    return "\n".join(
+        json.dumps(r, ensure_ascii=False, separators=(",", ":")) for r in rows
+    )
+
+
 def render_markdown_table(
     rows: List[Dict[str, Any]],
     columns_typed: List[Dict[str, str]],
     limit: int = 10,
 ) -> str:
-    """前 limit 行渲染为 markdown 表格。空表返回空串。"""
+    """前 limit 行渲染为 markdown 表格。空表返回空串。
+
+    【已不在 content.text 主路径使用】content.text 现在走 JSONL,见
+    render_jsonl_body。函数保留供潜在外部调用,无内部调用点。
+    """
     if not rows or not columns_typed:
         return ""
     names = [c["name"] for c in columns_typed]
@@ -88,26 +122,25 @@ def build_content_trailer(
     *,
     ui_uri: Optional[str],
     row_count: int,
-    rows_shown: int,
-    path: Optional[str],
     include_ui: bool,
 ) -> str:
-    """content.text 尾部引导文案。不引用 structuredContent 字段路径。"""
+    """content.text 尾部引导文案。
+
+    rows 永远全量内联(JSONL),不再有 as_file 分支 / artifact path / data_id /
+    download_urls。trailer 只补两件事:
+      1. UI 渲染同步提示(include_ui=True 时)
+      2. row_count 数值 + 一句"如何后续处理"
+    """
     lines: List[str] = []
     if ui_uri and include_ui:
         lines.append(f"📊 UI 已同步渲染（{ui_uri}）。")
-    if path:
-        lines.append(f"📁 完整 {row_count} 行数据已写入 {path}。")
-        if include_ui:
-            lines.append("用户可在 artifact 面板打开此文件交互查看；你也可以用 execute 读此文件做进一步分析。")
-        else:
-            lines.append("无内嵌 UI。你可以用 execute + matplotlib/plotly 绘图，或直接让用户在 artifact 面板查看此文件。")
-    elif row_count == 0:
+    if row_count == 0:
         lines.append("无数据。")
-    elif row_count > rows_shown:
-        lines.append(f"上方表格仅显示前 {rows_shown} 行（共 {row_count} 行）。需要完整数据做文件导出或脚本处理时，重新调用并设 as_file=True。")
     else:
-        lines.append("当前数据已内嵌上方表格，够回答大部分问题时直接答。需要把数据落成文件做后续处理时，重新调用并设 as_file=True。")
+        lines.append(
+            f"完整 {row_count} 行数据已 inline 在上方 (JSONL,每行一条记录)。"
+            "需要做后续脚本处理 → execute / dispatch_worker 直接读取上方文本。"
+        )
     return "\n".join(lines)
 
 
@@ -126,22 +159,25 @@ def build_artifact_envelope(
     """生成 envelope 各部件,调用方用 finalize_artifact_result 包成 ToolResult。
 
     structuredContent 字段(调用方 .update 进去):
-      row_count, columns, rows, date_range  恒有 (rows 在 as_file 时为 [])
-      path, download_urls                   仅 as_file=True
+      row_count, columns, rows, date_range  恒有 (rows 永远全量)
       data, daily_data                      仅 include_ui=True (与 rows 同源,
                                             供 ui:// iframe 渲染:多数模板读 raw.data,
                                             kline-chart 读 raw.daily_data.items)
 
     内部带下划线字段由 finalize_artifact_result pop 掉,不进 structuredContent:
-      _content_text   content[0].text 全文
+      _content_text   content[0].text 全文(JSONL)
+
+    as_file / filename / max_rows_in_text 参数保留只为向后兼容入参(避免改 18
+    个 tool 签名),功能上忽略:rows 永远全量内联,文件落盘交给 deepagents
+    offloading 机制(content >20K tokens 时自动写到 agent sandbox)。
     """
     column_names = list(rows[0].keys()) if rows else []
     columns_typed = build_columns_typed(rows, column_names)
     row_count = len(rows)
 
-    # 统一决定 inline 数据载体:as_file 时为 [],否则等于 rows。
+    # rows 永远全量,不再因 as_file 截断。as_file 入参形同虚设。
     # 三个字段(rows/data/daily_data.items)共用同一引用,序列化时各自一份副本。
-    payload: List[Dict[str, Any]] = [] if as_file else list(rows)
+    payload: List[Dict[str, Any]] = list(rows)
 
     fields: Dict[str, Any] = {
         "row_count": row_count,
@@ -162,24 +198,18 @@ def build_artifact_envelope(
             except TypeError:
                 pass
 
-    path: Optional[str] = None
-    if as_file and rows:
-        meta = data_file_store.store(rows, tool_name, query_params)
-        urls = data_file_store.get_download_urls(meta.data_id)
-        semantic = filename or build_semantic_filename(tool_name, query_params)
-        path = f"/workspace/{semantic}"
-        fields["path"] = path
-        fields["download_urls"] = urls
-
-    table_md = render_markdown_table(rows, columns_typed, limit=max_rows_in_text)
+    # content.text:header + 空行 + JSONL 全量 + trailer。
+    # 不再调 data_file_store / 不再拼 path / 不再回填 download_urls /
+    # 不再 render_markdown_table —— 那些都属于已停用的 as_file 通路。
+    jsonl_body = render_jsonl_body(rows)
     trailer = build_content_trailer(
         ui_uri=ui_uri,
         row_count=row_count,
-        rows_shown=min(row_count, max_rows_in_text),
-        path=path,
         include_ui=include_ui,
     )
-    parts: List[str] = [p for p in (header_text.rstrip() if header_text else "", table_md, trailer) if p]
+    parts: List[str] = [
+        p for p in (header_text.rstrip() if header_text else "", jsonl_body, trailer) if p
+    ]
     fields["_content_text"] = "\n\n".join(parts)
     return fields
 
@@ -232,9 +262,14 @@ def finalize_artifact_result(
         result.pop(k, None)
     result.update(env)
 
+    meta: Optional[Dict[str, Any]] = None
+    if include_ui and ui_uri:
+        meta = {"ui": {"resourceUri": ui_uri}}
+
     return ToolResult(
         content=[TextContent(type="text", text=content_text)],
         structured_content=result,
+        meta=meta,
     )
 
 
@@ -271,17 +306,18 @@ def build_artifact_fields(
 
 AS_FILE_INCLUDE_UI_DECISION_GUIDE = """
 
-【as_file / include_ui 决策指南】
-默认（as_file=False, include_ui=False）：仅 content.text 内联 markdown 表格 + 结构化数据，
-不附加 ui:// iframe、不下发 UI 兼容字段；适合纯文本/分析场景，省 token 和带宽。
-何时设 include_ui=True（启用内嵌交互式 UI）：
+【include_ui 决策指南】
+默认 include_ui=False:content.text 内联 JSONL 全量数据(每行一条记录)+ 结构化数据,
+不附加 ui:// iframe。适合纯文本 / 分析 / 后续脚本处理场景。
+
+何时设 include_ui=True(启用内嵌交互式 UI):
   - 用户明确要求"画图 / 出图 / 看走势 / 看分布 / 渲染图表"等可视化诉求
-  - 你确认调用方 Host 支持 MCP Apps iframe 渲染（如 Claude.ai web、其它 UI Host）
-  - 数据本身高度适合可视化（K 线、净值曲线、资金流、相关性矩阵等）
+  - 你确认调用方 Host 支持 MCP Apps iframe 渲染(如 Claude.ai web、其它 UI Host)
+  - 数据本身高度适合可视化(K 线、净值曲线、资金流、相关性矩阵等)
   - 设了 include_ui=True 后,structuredContent 会带 data + daily_data 别名,
     ToolResult.meta 不再屏蔽 ui 钩子,前端 iframe 才能拿到数据渲染。
-何时设 as_file=True（把完整数据写成 .jsonl 文件）：
-  - 用户明确要求"保存 / 导出 / 下载"数据
-  - 你计划用 execute 工具对数据做自定义分析（聚合月线、多标的对比、计算指标等）
-  - 数据规模或维度大,inline markdown 表格无法承载
+
+注:as_file 参数已停用(仍保留在签名里向后兼容),传 True 等同 False,数据始终
+全量 inline——deepagents 端会在 content >20K tokens 时自动 offload 到 agent
+sandbox /workspace/large_tool_results/,findata 侧不再做文件存储。
 """

@@ -73,7 +73,7 @@ class TushareAPI:
 
         # 美股：全字母 1-5 位，直接返回（美股无后缀）
         base = code.split('.')[0] if '.' in code else code
-        if base.isalpha() and 1 <= len(base) <= 5:
+        if base.isascii() and base.isalpha() and 1 <= len(base) <= 5:
             return code.upper()
 
         # 如果已经包含市场后缀，直接返回（A 股 / 指数）
@@ -109,7 +109,7 @@ class TushareAPI:
             return "HK"
         # 美股：全字母（1-5位），或 字母.字母 如 BRK.A
         base = code.split('.')[0] if '.' in code else code
-        if base.isalpha() and 1 <= len(base) <= 5:
+        if base.isascii() and base.isalpha() and 1 <= len(base) <= 5:
             return "US"
         return "A"
 
@@ -118,14 +118,19 @@ class TushareAPI:
         判断代码是否为指数代码（纯静态规则，不需要 API 调用）
 
         规则：
-        - *.SI → 申万指数
-        - *.CI → 中信指数
-        - 399xxx.SZ → 深证指数系列
-        - 000xxx.SH → 上证指数系列（上交所股票从 600 起，无 000 开头）
-        - 9xxxxx.SH → 上证其他指数
+        - *.SI         → 申万指数
+        - *.CI         → 中信指数
+        - *.CSI        → 中证指数（000832.CSI 中证转债、932000.CSI 中证2000、930050.CSI 中证A50 等）
+        - *.CNI        → 国证指数（980086.CNI 创新药 等）
+        - 399xxx.SZ    → 深证指数系列
+        - 000xxx.SH    → 上证指数系列（上交所股票从 600 起，无 000 开头）
+        - 9xxxxx.SH    → 上证其他指数
+        - 899xxx.BJ    → 北交所指数（北证50 等；北交所股票为 836-873xxx.BJ）
         """
         code = code.strip().upper()
         if code.endswith('.SI') or code.endswith('.CI'):
+            return True
+        if code.endswith('.CSI') or code.endswith('.CNI'):
             return True
         # 399xxx.SZ — 深证指数
         if re.match(r'^399\d{3}\.SZ$', code):
@@ -135,6 +140,9 @@ class TushareAPI:
             return True
         # 9xxxxx.SH — 上证其他指数
         if re.match(r'^9\d{5}\.SH$', code):
+            return True
+        # 899xxx.BJ — 北交所指数（北证50 等）
+        if re.match(r'^899\d{3}\.BJ$', code):
             return True
         return False
 
