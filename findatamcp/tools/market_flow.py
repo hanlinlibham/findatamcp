@@ -5,6 +5,7 @@
 - get_top_list: 获取龙虎榜数据
 """
 
+import logging
 from typing import Annotated, Dict, Any, Optional
 from datetime import datetime
 from fastmcp import FastMCP
@@ -25,6 +26,8 @@ DATA_TABLE_APP = AppConfig(
     visibility=["model", "app"],
 )
 
+logger = logging.getLogger("findatamcp.market_flow")
+
 
 def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
     """注册市场流向工具"""
@@ -33,35 +36,59 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
     async def get_sector_top_stocks(
         sector_name: str,
         limit: int = 10,
+        sort_by: str = "market_cap",
         date: Optional[str] = None,
         as_file: bool = False,
         include_ui: Annotated[bool, Field(description=INCLUDE_UI_DESCRIPTION)] = False,
     ) -> Dict[str, Any]:
         """
-        【行业龙头】查询白酒/银行/半导体/新能源等行业的龙头股代码列表，按市值降序，"白酒龙头有哪些"专用
+        【行业龙头/行业当日排行】查询白酒/银行/半导体/有色金属等行业的个股排行，
+        支持按市值（默认）、当日成交额、当日涨跌幅、换手率排序
 
-        解决"白酒行业"、"银行板块"等语义泛化问题。
+        既回答"白酒龙头有哪些"（静态属性，sort_by="market_cap"），
+        也回答"有色金属今天成交额前3是谁"（当日行情，sort_by="amount"）。
+        每条结果都带当日行情快照字段（close/pct_chg/amount_billion），
+        无需再逐只调用 get_latest_daily_close / get_historical_data。
+
         优先使用申万行业分类（更精准），fallback到通用行业分类。
 
         Args:
-            sector_name: 行业名称，如 "白酒", "银行", "半导体", "新能源"
+            sector_name: 行业名称，如 "白酒", "银行", "半导体", "有色金属"
             limit: 返回数量，默认 10（建议 5-20）
+            sort_by: 排序字段：
+                - "market_cap"（默认）总市值降序 —— 谁是龙头
+                - "amount" 当日成交额降序 —— 今天谁交易最活跃
+                - "pct_chg" 当日涨跌幅降序 —— 今天谁涨最多
+                - "turnover_rate" 当日换手率降序
             date: 指定日期（YYYYMMDD），已废弃，自动使用最新数据
 
         Returns:
-            股票代码列表和名称，可直接传给 analyze_stock_performance 工具
+            个股排行列表（含 market_cap_billion / close / pct_chg /
+            amount_billion / turnover_rate），codes 可直接传给
+            analyze_stock_performance / get_batch_pct_chg
 
         Examples:
-            >>> # 获取白酒行业前10大龙头股
+            >>> # 白酒市值前10龙头
             >>> result = await get_sector_top_stocks("白酒", limit=10)
-            >>> codes = result['codes']  # ['600519.SH', '000858.SZ', ...]
-            >>>
-            >>> # 然后将 codes 传给量化分析工具
-            >>> perf = await analyze_stock_performance(codes, "20230101", "20231231", "comprehensive")
+            >>> # 有色金属今日成交额前3
+            >>> result = await get_sector_top_stocks("有色金属", limit=3, sort_by="amount")
         """
         try:
             if not api.is_available():
                 return build_error_response("Pro data access required", ErrorCode.PRO_REQUIRED)
+
+            _SORT_COLUMNS = {
+                "market_cap": "total_mv",
+                "amount": "amount",
+                "pct_chg": "pct_chg",
+                "turnover_rate": "turnover_rate",
+            }
+            if sort_by not in _SORT_COLUMNS:
+                return build_error_response(
+                    error=f"sort_by 不支持 '{sort_by}'，可选: {', '.join(_SORT_COLUMNS)}",
+                    error_code=ErrorCode.SCHEMA_ERROR,
+                    data={"sort_by": sort_by},
+                )
 
             # ===== 第1步：获取行业股票列表 =====
             target_codes = []
@@ -165,7 +192,7 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
                         api.pro.daily_basic,
                         cache_type="daily",
                         ts_code=code,
-                        fields='ts_code,trade_date,total_mv,circ_mv,pe_ttm,pb',
+                        fields='ts_code,trade_date,total_mv,circ_mv,pe_ttm,pb,turnover_rate',
                         limit=1
                     )
                     for code in batch_codes
@@ -201,15 +228,49 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
             import pandas as pd
             df_mv = pd.concat(all_mv_data, ignore_index=True)
 
+            # ===== 第2.5步：当日行情快照（close/pct_chg/amount）=====
+            # pro.daily(trade_date=...) 一次取全市场，零逐只调用 —— agent 复盘
+            # (2026-06-12 conv 7ce1ff6f)反馈"逐只查成交额撞预算上限"的根治。
+            snap_date = str(df_mv['trade_date'].max())
+            df_daily = None
+            try:
+                df_daily = await cache.cached_call(
+                    api.pro.daily,
+                    cache_type="daily",
+                    trade_date=snap_date,
+                    fields='ts_code,close,pct_chg,amount'
+                )
+            except Exception as e:
+                logger.warning(f"⚠️ 当日行情快照获取失败({snap_date}): {e}")
+            if df_daily is not None and not df_daily.empty:
+                df_mv = pd.merge(df_mv, df_daily, on='ts_code', how='left')
+            else:
+                if sort_by in ("amount", "pct_chg"):
+                    return build_error_response(
+                        error=f"无法获取 {snap_date} 当日行情，sort_by='{sort_by}' 不可用；"
+                              f"可改用 sort_by='market_cap'",
+                        error_code=ErrorCode.NO_DATA,
+                        data={"sector": sector_name, "trade_date": snap_date},
+                    )
+                df_mv['close'] = None
+                df_mv['pct_chg'] = None
+                df_mv['amount'] = None
+
             # ===== 第3步：合并排序 =====
             merged = pd.merge(sector_stocks, df_mv, on='ts_code', how='inner')
             merged = merged[merged['total_mv'].notna()]
-            top_stocks = merged.sort_values('total_mv', ascending=False).head(limit)
+            # index_member 含历史进出记录，同一股票可能多行 —— 去重防榜单重复
+            merged = merged.drop_duplicates(subset='ts_code', keep='first')
+            sort_col = _SORT_COLUMNS[sort_by]
+            if sort_col not in merged.columns:
+                sort_col = 'total_mv'
+            top_stocks = merged.sort_values(sort_col, ascending=False, na_position='last').head(limit)
 
             # ===== 第4步：格式化输出 =====
             result_list = []
             for _, row in top_stocks.iterrows():
                 mv_yi = row['total_mv'] / 10000  # 万元 -> 亿元
+                amount = row.get('amount')
                 result_list.append({
                     "ts_code": row['ts_code'],
                     "name": row['name'],
@@ -217,7 +278,13 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
                     "market": row['market'],
                     "market_cap_billion": round(mv_yi, 2),
                     "pe_ttm": round(row['pe_ttm'], 2) if pd.notna(row['pe_ttm']) else None,
-                    "pb": round(row['pb'], 2) if pd.notna(row['pb']) else None
+                    "pb": round(row['pb'], 2) if pd.notna(row['pb']) else None,
+                    # 当日行情快照（trade_date 见外层 snapshot_date）
+                    "close": round(row['close'], 2) if pd.notna(row.get('close')) else None,
+                    "pct_chg": round(row['pct_chg'], 2) if pd.notna(row.get('pct_chg')) else None,
+                    # tushare daily.amount 单位千元 -> 亿元
+                    "amount_billion": round(amount / 100000, 2) if pd.notna(amount) else None,
+                    "turnover_rate": round(row['turnover_rate'], 2) if pd.notna(row.get('turnover_rate')) else None,
                 })
 
             codes_only = [item['ts_code'] for item in result_list]
@@ -226,6 +293,8 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
                 "success": True,
                 "sector_name": sector_name,
                 "data_source": data_source,
+                "sort_by": sort_by,
+                "snapshot_date": snap_date,
                 "count": len(result_list),
                 "data": result_list,
                 "stocks": result_list,
@@ -251,13 +320,20 @@ def register_market_flow_tools(mcp: FastMCP, api: TushareAPI):
                     }
                 }
             }
-            _header = f"{sector_name} 行业龙头 | {data_source} | 前 {len(result_list)} 只"
+            if sort_by == "market_cap":
+                _sector_result["next_tool_suggestion"] = (
+                    "如需当日成交额/涨跌幅/换手率排名，重调本工具并传 "
+                    "sort_by='amount'|'pct_chg'|'turnover_rate'，无需逐只查行情"
+                )
+            _sort_label = {"market_cap": "市值", "amount": "当日成交额",
+                           "pct_chg": "当日涨跌幅", "turnover_rate": "当日换手率"}[sort_by]
+            _header = f"{sector_name} 行业{_sort_label}排行 | {data_source} | 前 {len(result_list)} 只"
             _sector_result = attach_next_steps(_sector_result, "get_sector_top_stocks")
             return finalize_artifact_result(
                 rows=result_list,
                 result=_sector_result,
                 tool_name="get_sector_top_stocks",
-                query_params={"sector_name": sector_name, "limit": limit, "date": date},
+                query_params={"sector_name": sector_name, "limit": limit, "sort_by": sort_by, "date": date},
                 ui_uri="ui://findata/data-table",
                 as_file=as_file,
                 include_ui=include_ui,

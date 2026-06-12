@@ -580,10 +580,15 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
         - 只有一只股票 → 用 get_historical_data
         - 需要单日涨跌 → 用 get_latest_daily_close
 
+        ⚠️ start_date 必须早于 end_date：同日 start/end 只有1个数据点，
+        无法计算涨跌幅（会直接报错）。要算"今天的涨跌"，请把 start_date
+        设为前一交易日（跨日窗口），或用 get_latest_daily_close（自带当日
+        pct_chg），或用 get_sector_top_stocks(sort_by="pct_chg")。
+
         Args:
             stock_codes: 股票代码列表，如 ["600519.SH", "000858.SZ"]
                         ⭐ 可直接传入 get_sector_top_stocks 返回的 codes 字段
-            start_date: 开始日期 (YYYYMMDD)
+            start_date: 开始日期 (YYYYMMDD)，必须早于 end_date
             end_date: 结束日期 (YYYYMMDD)，默认最近交易日
 
         Returns:
@@ -624,6 +629,19 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
 
             adjusted_end, end_msg = await adjust_date_to_trading_day(cache, api, end_date)
             date_adjusted = bool(end_msg)
+
+            # 同日/倒置窗口守卫 —— agent 复盘(2026-06-12 conv 7ce1ff6f)实测:
+            # start==end 只返回1个数据点,pct_chg 全为 0,模型撞了三轮才试出
+            # 跨日窗口。fail-fast + 给出三条替代路径,三轮全免。
+            if start_date >= adjusted_end:
+                return build_error_response(
+                    f"start_date({start_date}) 必须早于 end_date(实际交易日 {adjusted_end})："
+                    f"同日窗口只有1个数据点，无法计算涨跌幅。"
+                    f"要算单日涨跌：1) start_date 设为前一交易日（跨日窗口）；"
+                    f"2) 用 get_latest_daily_close（自带当日 pct_chg）；"
+                    f"3) 行业排名用 get_sector_top_stocks(sort_by='pct_chg')",
+                    ErrorCode.SCHEMA_ERROR,
+                )
 
             # 标准化股票代码
             normalized_codes = [api.normalize_stock_code(c) for c in stock_codes]
