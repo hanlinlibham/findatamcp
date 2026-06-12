@@ -121,7 +121,7 @@ def create_mcp_server() -> FastMCP:
 
     # 注册所有工具
     register_market_tools(mcp, api)
-    register_financial_tools(mcp, api)
+    register_financial_tools(mcp, api, db)
     register_performance_tools(mcp, api)
     register_market_flow_tools(mcp, api)
     register_search_tools(mcp, api, db)

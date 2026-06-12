@@ -17,10 +17,11 @@ from ..cache import cache
 from ..utils.tushare_api import TushareAPI
 from ..utils.response import build_error_response
 from ..utils.errors import ErrorCode
+from ..utils.symbol_resolver import build_symbol_not_found
 from .routing import attach_next_steps
 
 
-def register_financial_tools(mcp: FastMCP, api: TushareAPI):
+def register_financial_tools(mcp: FastMCP, api: TushareAPI, db=None):
     """注册财务数据工具"""
 
     async def _financial_summary_impl(
@@ -250,11 +251,10 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI):
                 }
                 return attach_next_steps(result, "get_basic_info")
             else:
-                return build_error_response(
-                    error="未找到股票基本信息",
-                    error_code=ErrorCode.SYMBOL_NOT_FOUND,
-                    data={"ts_code": ts_code},
-                )
+                # 富错误:带 did_you_mean 模糊候选(2026-06-12 agent 复盘 F 场景:
+                # 纯 symbol_not_found 要多一轮 search 才能告诉用户"你可能找的是
+                # XXX";market_data 的行情路径早已用富错误,这里对齐)。
+                return await build_symbol_not_found(ts_code, db)
         except Exception as e:
             return {
                 "success": False,
