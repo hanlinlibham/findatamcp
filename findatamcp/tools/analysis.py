@@ -421,7 +421,14 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
 
                 if not fina_indicator_df.empty:
                     if 'end_date' in fina_indicator_df.columns:
-                        fina_indicator_df = fina_indicator_df.sort_values('end_date')
+                        # 同一 end_date 可能有更正前后两条记录（update_flag），按最新公告日
+                        # 去重，避免 _calculate_metric_stats 的位置窗口（yoy 用 iloc[i-4]）
+                        # 因重复行错位产生失真同比。
+                        _sort_cols = [c for c in ('end_date', 'ann_date') if c in fina_indicator_df.columns]
+                        fina_indicator_df = (
+                            fina_indicator_df.sort_values(_sort_cols)
+                            .drop_duplicates(subset='end_date', keep='last')
+                        )
 
                     # 处理财务指标
                     for metric in metrics:
@@ -450,12 +457,22 @@ def register_analysis_tools(mcp: FastMCP, api: TushareAPI):
                     api.pro.income,
                     cache_type="financial",
                     ts_code=ts_code,
+                    report_type="1",  # 合并报表 — 对齐 get_income_statement 的默认口径。
+                                      # 不传 report_type 时 Tushare 会把同一 end_date 的
+                                      # 单季合并/调整单季/调整合并等所有口径混在一起返回，
+                                      # 后面按位置窗口算 yoy/cagr/ttm 时会因重复行错位产生
+                                      # 离谱增速（例如把"合并报表"和"单季合并"两行相减）。
                     limit=limit
                 )
 
                 if not income_df.empty:
                     if 'end_date' in income_df.columns:
-                        income_df = income_df.sort_values('end_date')
+                        # 同一 end_date 仍可能有更正前后两条记录，按最新公告日去重。
+                        _sort_cols = [c for c in ('end_date', 'f_ann_date', 'ann_date') if c in income_df.columns]
+                        income_df = (
+                            income_df.sort_values(_sort_cols)
+                            .drop_duplicates(subset='end_date', keep='last')
+                        )
 
                     revenue_col = 'total_revenue' if 'total_revenue' in income_df.columns else 'revenue'
                     profit_col = 'n_income' if 'n_income' in income_df.columns else 'net_profit'
