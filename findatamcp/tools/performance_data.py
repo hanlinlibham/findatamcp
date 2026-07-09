@@ -10,6 +10,7 @@ from datetime import datetime
 from fastmcp import FastMCP
 
 from ..utils.tushare_api import TushareAPI
+from .financial_data import _latest_reported_row
 
 
 def register_performance_tools(mcp: FastMCP, api: TushareAPI):
@@ -103,8 +104,9 @@ def register_performance_tools(mcp: FastMCP, api: TushareAPI):
             if df.empty:
                 return {"success": False, "error": "未找到业绩快报数据", "ts_code": ts_code}
 
-            # 获取最新一条
-            data = df.iloc[0].to_dict()
+            # 获取最新一条。业绩快报有更正公告：同一 end_date 可能有新旧两条
+            # 记录（靠 ann_date 区分先后），直接 iloc[0] 被返回顺序摆布。
+            data = _latest_reported_row(df).iloc[0].to_dict()
 
             return {
                 "success": True,

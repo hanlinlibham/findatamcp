@@ -33,6 +33,7 @@ from ..utils.symbol_resolver import (
     unavailable_response,
 )
 from .constants import INCLUDE_UI_DESCRIPTION, READONLY_ANNOTATIONS
+from .financial_data import _latest_reported_row
 from .routing import attach_next_steps
 from ..utils.response import build_error_response
 from ..utils.errors import ErrorCode
@@ -274,17 +275,20 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
                     if api.is_available():
                         financial_data = {}
 
-                        # 获取利润表核心数据
+                        # 获取利润表核心数据。钉死合并报表口径、多拉几行、
+                        # 本地按公告日取最新——limit=1 会把选行权交给 Tushare
+                        # 服务端排序，重报/多口径时看运气(同 financial_data 修复)。
                         income_df = await cache.cached_call(
                             api.pro.income,
                             cache_type="financial",
                             ts_code=ts_code,
-                            limit=1,
-                            fields='ts_code,end_date,total_revenue,total_profit,n_income'
+                            report_type="1",
+                            limit=8,
+                            fields='ts_code,end_date,ann_date,f_ann_date,total_revenue,total_profit,n_income'
                         )
 
                         if not income_df.empty:
-                            latest_income = income_df.iloc[0].to_dict()
+                            latest_income = _latest_reported_row(income_df).iloc[0].to_dict()
                             financial_data["income_core"] = {
                                 "total_revenue": latest_income.get('total_revenue', 0),
                                 "total_profit": latest_income.get('total_profit', 0),
@@ -292,17 +296,18 @@ def register_market_tools(mcp: FastMCP, api: TushareAPI, db: Optional[EntityStor
                                 "end_date": latest_income.get('end_date', '')
                             }
 
-                        # 获取资产负债表核心数据
+                        # 获取资产负债表核心数据（口径/重报处理同上）
                         balance_df = await cache.cached_call(
                             api.pro.balancesheet,
                             cache_type="financial",
                             ts_code=ts_code,
-                            limit=1,
-                            fields='ts_code,end_date,total_assets,total_hldr_eqy_exc_min_int'
+                            report_type="1",
+                            limit=8,
+                            fields='ts_code,end_date,ann_date,f_ann_date,total_assets,total_hldr_eqy_exc_min_int'
                         )
 
                         if not balance_df.empty:
-                            latest_balance = balance_df.iloc[0].to_dict()
+                            latest_balance = _latest_reported_row(balance_df).iloc[0].to_dict()
                             financial_data["balance_core"] = {
                                 "total_assets": latest_balance.get('total_assets', 0),
                                 "total_equity": latest_balance.get('total_hldr_eqy_exc_min_int', 0),

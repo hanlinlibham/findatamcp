@@ -83,17 +83,22 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI, db=None):
 
             financial_data = {}
 
-            # 获取最近一年的利润表核心数据
+            # 获取最近一年的利润表核心数据。
+            # limit=1 会把"选哪一行"完全交给 Tushare 服务端排序：不钉 report_type
+            # 时同一 end_date 混着合并/单季等多种口径，重报时还有新旧两个版本，
+            # 返回哪条看运气(与 get_income_statement 修过的同型 bug)。改为钉死
+            # 合并报表口径、多拉几行、本地按公告日取最新。
             income_df = await cache.cached_call(
                 api.pro.income,
                 cache_type="financial",
                 ts_code=ts_code,
-                limit=1,
-                fields='ts_code,end_date,total_revenue,total_profit,n_income'
+                report_type="1",
+                limit=8,
+                fields='ts_code,end_date,ann_date,f_ann_date,total_revenue,total_profit,n_income'
             )
 
             if not income_df.empty:
-                latest_income = income_df.iloc[0].to_dict()
+                latest_income = _latest_reported_row(income_df).iloc[0].to_dict()
                 financial_data["income_core"] = {
                     "total_revenue": latest_income.get('total_revenue', 0),
                     "total_profit": latest_income.get('total_profit', 0),
@@ -101,17 +106,18 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI, db=None):
                     "end_date": latest_income.get('end_date', '')
                 }
 
-            # 获取资产负债表核心数据
+            # 获取资产负债表核心数据（口径/重报处理同上）
             balance_df = await cache.cached_call(
                 api.pro.balancesheet,
                 cache_type="financial",
                 ts_code=ts_code,
-                limit=1,
-                fields='ts_code,end_date,total_assets,total_hldr_eqy_exc_min_int'
+                report_type="1",
+                limit=8,
+                fields='ts_code,end_date,ann_date,f_ann_date,total_assets,total_hldr_eqy_exc_min_int'
             )
 
             if not balance_df.empty:
-                latest_balance = balance_df.iloc[0].to_dict()
+                latest_balance = _latest_reported_row(balance_df).iloc[0].to_dict()
                 financial_data["balance_core"] = {
                     "total_assets": latest_balance.get('total_assets', 0),
                     "total_equity": latest_balance.get('total_hldr_eqy_exc_min_int', 0),
