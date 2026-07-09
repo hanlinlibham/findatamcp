@@ -21,6 +21,27 @@ from ..utils.symbol_resolver import build_symbol_not_found
 from .routing import attach_next_steps
 
 
+def _latest_reported_row(df):
+    """按 (end_date, f_ann_date/ann_date) 取最新一条记录。
+
+    Tushare 对同一个 (end_date, report_type) 在财报重报/更正后会返回不止一条
+    记录——原始披露一条，更正后版本另一条，靠 f_ann_date(最终公告日)区分先后。
+    直接 .iloc[0] 会被 Tushare 的返回顺序摆布，随机吃到重报前的过期数字。
+
+    2026-07-09 从 000858.SZ 实测坐实：半年报(20250630)/三季报(20250930)
+    在 FY2025 年报发布当天(f_ann_date=20260430)被同步重新公告，新版本营收
+    只有原始披露的不到一半——用错版本会让同比/环比这类跨期计算全部失真。
+
+    正常情况(每期只有一条记录)下是空操作，不改变现有行为。
+    """
+    if len(df) <= 1:
+        return df
+    sort_cols = [c for c in ("end_date", "f_ann_date", "ann_date") if c in df.columns]
+    if not sort_cols:
+        return df
+    return df.sort_values(sort_cols, ascending=False)
+
+
 def register_financial_tools(mcp: FastMCP, api: TushareAPI, db=None):
     """注册财务数据工具"""
 
@@ -314,7 +335,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI, db=None):
                 return {"success": False, "error": "未找到利润表数据", "ts_code": ts_code, "period": period or "latest"}
 
             # 转换为字典
-            data = df.iloc[0].to_dict()
+            data = _latest_reported_row(df).iloc[0].to_dict()
             actual_period = period or data.get("end_date", "")
 
             return {
@@ -378,7 +399,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI, db=None):
             if df.empty:
                 return {"success": False, "error": "未找到资产负债表数据", "ts_code": ts_code, "period": period or "latest"}
 
-            data = df.iloc[0].to_dict()
+            data = _latest_reported_row(df).iloc[0].to_dict()
             actual_period = period or data.get("end_date", "")
 
             return {
@@ -442,7 +463,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI, db=None):
             if df.empty:
                 return {"success": False, "error": "未找到现金流量表数据", "ts_code": ts_code, "period": period or "latest"}
 
-            data = df.iloc[0].to_dict()
+            data = _latest_reported_row(df).iloc[0].to_dict()
             actual_period = period or data.get("end_date", "")
 
             return {
@@ -494,7 +515,7 @@ def register_financial_tools(mcp: FastMCP, api: TushareAPI, db=None):
             if df.empty:
                 return {"success": False, "error": "未找到财务指标数据", "ts_code": ts_code, "period": period or "latest"}
 
-            data = df.iloc[0].to_dict()
+            data = _latest_reported_row(df).iloc[0].to_dict()
             actual_period = period or data.get("end_date", "")
 
             return {
