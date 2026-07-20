@@ -237,7 +237,7 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
             }
 
             # 成交额统计（亿元）
-            amount = df_daily['amount'].dropna() / 10000  # 千元 -> 亿元
+            amount = df_daily['amount'].dropna() / 100000  # 千元 -> 亿元 (1亿=1e5千元)
             amount_stats = {
                 "total": round(float(amount.sum()), 2),
                 "mean": round(float(amount.mean()), 4),
@@ -483,7 +483,7 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
                     "industry": row.get('industry', ''),
                     "close": round(float(row['close']), 2),
                     "pct_chg": round(float(row['pct_chg']), 2),
-                    "amount": round(float(row['amount']) / 10000, 2)  # 亿元
+                    "amount": round(float(row['amount']) / 100000, 2)  # 千元 -> 亿元 (1亿=1e5千元)
                 }
                 if metric == "turnover_rate" and 'turnover_rate' in row:
                     item["turnover_rate"] = round(float(row['turnover_rate']), 2)
@@ -499,7 +499,7 @@ def register_market_statistics_tools(mcp: FastMCP, api: TushareAPI):
                     "industry": row.get('industry', ''),
                     "close": round(float(row['close']), 2),
                     "pct_chg": round(float(row['pct_chg']), 2),
-                    "amount": round(float(row['amount']) / 10000, 2)
+                    "amount": round(float(row['amount']) / 100000, 2)  # 千元 -> 亿元 (1亿=1e5千元)
                 }
                 if metric == "turnover_rate" and 'turnover_rate' in row:
                     item["turnover_rate"] = round(float(row['turnover_rate']), 2)
