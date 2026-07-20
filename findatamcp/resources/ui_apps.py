@@ -125,9 +125,9 @@ body {
 
   function fmt(n) {
     if (n == null) return '-';
-    if (Math.abs(n) >= 10000) return (n/10000).toFixed(1) + '万亿';
-    if (Math.abs(n) >= 1) return n.toFixed(1);
-    return n.toFixed(2);
+    if (Math.abs(n) >= 10000) return (n/10000).toFixed(2) + '万亿';
+    if (Math.abs(n) >= 1) return n.toFixed(1) + '亿';
+    return n.toFixed(2) + '亿';
   }
 
   function render(raw) {
@@ -156,7 +156,7 @@ body {
         '<div class="card"><div class="stat-value down">' + (ad.decline || '-') + '</div><div class="stat-label">下跌 (' + (ad.decline_ratio || 0) + '%)</div></div>' +
         '<div class="card"><div class="stat-value up">' + (ls.limit_up || 0) + '</div><div class="stat-label">涨停</div></div>' +
         '<div class="card"><div class="stat-value down">' + (ls.limit_down || 0) + '</div><div class="stat-label">跌停</div></div>' +
-        '<div class="card"><div class="stat-value">' + fmt(am.total) + '亿</div><div class="stat-label">总成交额</div></div>' +
+        '<div class="card"><div class="stat-value">' + fmt(am.total) + '</div><div class="stat-label">总成交额</div></div>' +
         '<div class="card"><div class="stat-value">' + (vs.pe_median != null ? vs.pe_median.toFixed(1) : '-') + '</div><div class="stat-label">PE 中位数</div></div>' +
         '<div class="card"><div class="stat-value">' + (vs.pb_median != null ? vs.pb_median.toFixed(2) : '-') + '</div><div class="stat-label">PB 中位数</div></div>' +
       '</div>' +
